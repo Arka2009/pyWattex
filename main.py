@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 from scipy.stats import bernoulli
 
 def motivationalExperiment():
-    Gfl = f'benchmarks/motivation.dot'
-    D   = 425
+    Gfl = f'benchmarks/dag4/random100_2.dot' # Use f'benchmarks/motivation.dot' for motiv
+    D   = 1700 # Use 425 for motiv
     p2,f2,r2,oldGfl = ut.PkMin(Gfl,D,True)
 
 def main():
@@ -41,24 +41,34 @@ def main():
     # print(f'Completed numTasks experiments')
     # flT.close()
 
-    # for id in range(1,2): # 101
-    #     N = 100
-    #     D   = 17*N
-    #     Gfl = f'benchmarks/dag4/random{N}_{id}.dot'
-    #     p2,f2,r2,oldGfl = ut.PkMin(Gfl,D)
-    #     p1,mMax,f1,r1 = dnc.DnCLike(Gfl,D)
-    #     print(f'{id},{p2/p1}',file=fl2)
-    # print(f'Completed numRandom experiments')
-    
-    p2=np.Infinity
-    for fac in range(17,18): # 118
+    for id in range(2,3): # 101
         N = 100
-        D = fac*N
-        Gfl = f'benchmarks/dag3/random{N}_0.dot'
-        p2,f2,r2,oldGfl = ut.PkMin(Gfl,D)
-        p1,mMax,f1,r = dnc.DnCLike(Gfl,D)
-        print(f'{D},{p2/p1}',file=fl3)
-    print(f'Completed numDeadlines experiments')
+        D   = 17*N
+        Gfl = f'benchmarks/dag4/random{N}_{id}.dot'
+        p2,f2,r2,_= ut.PkMin(Gfl,D)
+        p1,f1,r1,_ = dnc.DnCLike(Gfl,D)
+        print(f'{id},{p2/p1}',file=fl2)
+        # print(f'{id},{p2/p1}')
+        pprint.pprint({
+            'id' : id,
+            'pkp_DnCLike':p1,
+            'pkp_PkMin':p2,
+            'Et_DnCLike':f1/D,
+            'Et_PkMin':f2/D
+        })
+        print(f'\n')
+    print(f'Completed numRandom experiments')
+    
+    # p2=np.Infinity
+    # for fac in range(17,118): # 118
+    #     N = 100
+    #     D = fac*N
+    #     Gfl = f'benchmarks/dag3/random{N}_0.dot'
+    #     p2,f2,r2,oldGfl = ut.PkMin(Gfl,D)
+    #     p1,mMax,f1,r = dnc.DnCLike(Gfl,D)
+    #     print(f'{D},{p2/p1}',file=fl3)
+    #     print(f'{D},{p2/p1}')
+    # print(f'Completed numDeadlines experiments')
 
     # fl1.close()
     fl2.close()
@@ -66,7 +76,8 @@ def main():
     # fl4.close()
 
 if __name__=="__main__":
-    main()
+    # main()
+    motivationalExperiment()
     # Gfl = f'dag3/random82_0.dot'
     # G = ut.ATG(Gfl)
     # print(G.getMinAlloc(2,32))

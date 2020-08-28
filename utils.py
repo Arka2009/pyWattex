@@ -245,7 +245,8 @@ class ATG(object):
         H.nodes[v1]['bp'] = BPDICT[benchName]
         
         H.nodes[v1]['stack'] = stack1 + stack2
-        H.nodes[v1]['children'] = chld1 + chld2 + [(v2,self.G.nodes[v2])]
+        H.nodes[v1]['children'] = chld1 + chld2 + [(v2,self.G.nodes[v2])] + [(v1,self.G.nodes[v1])]
+        
         # Reset the graph
         self.G = H
         
@@ -383,16 +384,27 @@ class ATG(object):
             T, all of whose predecessors
             lie in U
         """
-        # readyNodes = set()
-        # T2 = set(T)
-        # for t in T2 :
-        #     pred = set(self.G.predecessors(t))
-        #     if pred <= U : 
-        #         if t in (T2-U) :
-        #             readyNodes.add(t)
-        # return readyNodes
-        nbdT = (ft.reduce(lambda u,v : u|v,[set(self.G.predecessors(t)) | set([t]) for t in T]) & set(T)) - U
-        return nbdT
+        # nbdT = (ft.reduce(lambda u,v : u|v,[set(self.G.predecessors(t)) | set([t]) for t in T]) & set(T)) - U
+        # return nbdT
+        readyT = set()
+        for t in T :
+            pred = set(self.G.predecessors(t))
+            if pred <= U :
+                readyT.add(t)
+        return readyT
+
+    def getReadyNodes2(self,T,U) :
+        """
+            Find the subset of T, whose
+            predecessors are in U and which
+            is not already in U
+        """ 
+        readyNodes = set()
+        for t in T :
+            pred = set(self.G.predecessors(t))
+            if (pred <= U) and (t not in U):
+                readyNodes.add(t)
+        return readyNodes
 
     def getMinAlloc(self,u,D,M):
         """
@@ -559,14 +571,6 @@ def PkMin(fl2,D,debugPrint=False):
             pkp2,finish2 = atg.getTotalEtPower()
             print(f'iter_AftCVXOpt@{i}|Et:{finish2},Pkp:{pkp2},ATG:{atg}\n')
 
-        # Deadline Missed
-        # if finish > D :
-        #     print(f'STOPPED : DEADLINE MISS')
-        #     break
-        # if oldpkp < pkp :
-        #     print(f'STOPPED : PREVIOUS CONFIG BETTER')
-        #     break
-
         # DAG merging
         ac = atg.computeBestPair(MAXCPU)
         if ac:
@@ -574,18 +578,12 @@ def PkMin(fl2,D,debugPrint=False):
             atg.mergeNodes(a,c)
         else :
             completelySerialized = True
-
-        # AFter DAG merging
-        # if debugPrint :
-        #     pkp2,finish2 = atg.getTotalEtPower()
-        #     print(f'iter_AftDAGMerging@{i}|Et:{finish2},Pkp:{pkp2},ATG:{atg}\n')
-        
         i += 1
 
     s2  = time.time()
     # Verfication
     verpkp, verfinish = oldatg.getTotalEtPower()
-    print(f'Best Configuration|Et:{verfinish},Pkp:{verpkp}')
+    # print(f'Best Configuration|Et:{verfinish},Pkp:{verpkp}')
     return oldpkp,oldfin,(s2-s1),oldatg
 
 if __name__=="__main__":

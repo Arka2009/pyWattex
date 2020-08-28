@@ -12,6 +12,9 @@ import copy
 
 def DnCDAGSchedule(T,M,atg):
     """
+        EXPERIMENTAL IMPLEMENTATION
+        ---------------------------
+
         Graham's list scheduling
 
         Format of IS := <node-id,alloc,start,finish>
@@ -25,42 +28,30 @@ def DnCDAGSchedule(T,M,atg):
     IS     = []                       # Data structure to hold schedule
     exT    = []                       # Priority queue of executing nodes
     U      = set()                    # Set of already finished nodes
-    readyT = atg.getReadyNodes(T,U)   # Set of enabled nodes
+    readyT = atg.getReadyNodes2(T,U)   # Set of enabled nodes which are not already executed
     time   = 0
     i = 0
     # print(f'TotalTask:{len(T)}')
-    while len(T) > 0:
-        if len(readyT) > 0 and (readyM > 0):
-            # Assign m cores to task-t
-            # readyTO = copy.deepcopy(readyT)
-            t      = readyT.pop()
-            # print(f'Graham({time})|Started:{t}-from-readyT:{readyTO}')
-            m      = atg.getPace(t,M)  # WARNING : Are you sure you want to run at pace configuration
+    while len(readyT) > 0:
+        u = readyT.pop() # pop a single task/node
+        m = atg.getPace(u,M) # WARNING : Are you sure you want to run at pace configuration
+        if readyM >= m : # Enough cores are available, start the execution of u
             start  = time
-            finish = start+atg.getExecutionTime(t,m)
-            heapq.heappush(exT,(finish,t,m))
-            IS.append((t,m,start,finish))
+            finish = start+atg.getExecutionTime(u,m)
+            heapq.heappush(exT,(finish,u,m))
+            IS.append((u,m,start,finish))
             readyM -= m
-        else :
-            if (len(exT) > 0) :
-                # exTO = copy.deepcopy(exT)
-                finish,t,m = heapq.heappop(exT)
-                U.add(t)
-                executingNodes = set([u[1] for u in exT])
-                readyT = atg.getReadyNodes(T,U) - executingNodes
-                # print(f'Graham({time})|Finished:{t}-from-exT:{exTO},executingNodes:{executingNodes},RnT:{atg.getReadyNodes(T,U)},T:{T},U:{U}')
-                # print(f'Graham({time})|UpdateReadyNode:{readyT}')
-                # print(f'Graham({time})|removing:{t},Free:{len(U)}')
-                T.remove(t)
-                readyM += m
-                time = finish
-            else :
-                print(f'Graham({time:.2f})|readyT:{readyT},readyM:{readyM},T:{T},exT:{exT}')
-                raise ValueError(f'Nobody is executing')
-            # print(f'DnCDAGScheduleTTT({time})|readyT:{readyT},T:{T},RnT:{atg.getReadyNodes(T,U)},exT:{exT}')
-        # print(f'iter:{i},Total Tasks:{len(T)}')
-        i += 1
-    # print(f'\n\n\n')
+            # print(f'{time}@Added:{u},Completed:{len(U)},readyNodes:{readyT}')
+        else : # Advance time, finish the execution of v, add the successors of v
+            readyT.add(u) # put back the popped element
+            finish,v,m2 = heapq.heappop(exT)
+            U.add(v)
+            readyM += m2
+            readyT |= atg.getReadyNodes2(T,U)
+            time = finish
+            # print(f'{time}@readyNodes:{readyT}')
+            # readyT = atg.getReadyNodes(T,U)
+            # T &= readyT
     return IS
 
 def checkIndependence(T,atg):
@@ -356,7 +347,7 @@ def DnCLike(fl2,D):
     s2  = time.time()
     f   = np.max([u[3] for u in S])
     p,mMax   = computeMaxPkp(S,atg)
-    return p,mMax,f,(s2-s1)
+    return p,f,(s2-s1),mMax
 
 def main():
     N   = 69
