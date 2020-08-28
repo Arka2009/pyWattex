@@ -19,7 +19,6 @@ import functools as ft
 BENCH         = ['dfs','cilksort','fib','pi','queens']
 L             = 1/0.52
 MAXCPU        = 16
-perphasepower = lambda x,a,b : a*x + b
 
 def combineBench(Nr):
     """
@@ -39,8 +38,8 @@ def generateCombinedBench(Nr):
     R   = []
     for a in A:
         aL = a.split(',')
-        if len(aL) > 1:
-            st = len(aL)
+        st = len(aL)
+        if st > 1:
             etXL = lambda X : np.max([etL(X/st,AETDICT[b],BETDICT[b]) for b in aL])
             pwXL = lambda X : ft.reduce(lambda p1,p2 : p1+p2,[pwL(X/st,APDICT[b],BPDICT[b]) for b in aL])            
             X = np.arange(1,MAXCPU,0.1)
@@ -52,8 +51,7 @@ def generateCombinedBench(Nr):
             BETDICT[a] = bet
             APDICT[a] = ap
             BPDICT[a] = bp
-            R += [r,r2]
-    # pprint.pprint(AETDICT)   
+            R += [r,r2] 
 
 def equivExecTimeCharacteristics(a1,a2,b1,b2,W1,W2):
     """
@@ -106,10 +104,6 @@ APDICT = dict(zip(BENCH,[extractCharacteristics(b)[4] for b in BENCH]))
 BPDICT = dict(zip(BENCH,[extractCharacteristics(b)[5] for b in BENCH]))
 generateCombinedBench(4)
 
-def main():
-    # extractCharacteristics(BENCH[0])
-    # print(getPace('fib',16))
-    pass
 
 class ATG(object):
     """
@@ -128,24 +122,16 @@ class ATG(object):
             n[1].update(rank=-1)
             n[1].update(start=-1)
             n[1].update(finish=-1)
-            # n[1].update(executed=False)
         
         self.valid    = True
-
-    # def taskExecuted(self,u):
-    #     self.G.nodes[u]['executed'] = True
     
     def __str__(self):
-        N = list(self.G.nodes(data=True))
-        U = N
-        # for n in N:
-        #     for u in n[1]['children']:
-        #         u[1]['alloc'] = (int(n[1]['alloc'])/int(n[1]['stack']))
-        #     U += n[1]['children']
-        #     n[1]['children'].clear()
-        #     n[1]['alloc'] = (int(n[1]['alloc'])/int(n[1]['stack']))
-        #     U += [n]
+        U = list(self.G.nodes(data=True))
         return pprint.pformat(U)
+
+    def altPrint(self):
+        U = dict(list(self.G.nodes(data=True)))
+        return ft.reduce(lambda x,y : x+y,[str((k,U[k]['alloc'])) for k in U])
 
     def dumpDot(self):
         nxdr.write_dot(self.G,f'dump.dot')
@@ -159,6 +145,9 @@ class ATG(object):
             the DnC algorithm
         """
         return set([str(u) for u in self.G.nodes])
+
+    # def getReadyNodes(self,T,U) :
+    #     pass
 
     def updateAllocParams(self,u,m,r,start,finish):
         """
@@ -189,32 +178,6 @@ class ATG(object):
         bet = float(self.G.nodes[u]['bet'])
         et.append(1/(aet*m+bet))
         return np.max(et)
-        
-    def getPreds(self,u):
-        return set(self.G.predecessors(str(u)))
-
-    def getReadyNodes(self,T,U):
-        """
-            Compute all the nodes 
-            that are enabled in T
-            due to the completion of
-            nodes in U
-        """
-        # # Compute all executed nodes
-        # U = set()
-        # for u in self.G.nodes(data=True):
-        #     if u[1]['executed'] :
-        #         U.add(u[0])
-        # Compute the predecessors of 
-        readyT = set()
-        setT   = set(T)
-        for t in T:
-            predSet = self.getPreds(t) & setT
-            if len(predSet) == 0 :
-                readyT.add(t)
-            elif predSet.issubset(U) :
-                readyT.add(t)
-        return readyT-U # return all those ready elements, except the ones that have been completed
 
     def getPower(self,u,m):
         """
@@ -246,7 +209,7 @@ class ATG(object):
         iEv1 = list(self.G.in_edges(v1))
         oEv1 = list(self.G.edges(v1)) # OutEdges incident on v1
         iEv2 = list(self.G.in_edges(v2))
-        oEv2 = list(self.G.edges(v2)) # OutEdges incident on v1
+        oEv2 = list(self.G.edges(v2)) # OutEdges incident on v2
         
         # Remove the edges and nodes
         for e in iEv2 :
@@ -275,24 +238,6 @@ class ATG(object):
         stack2 =  int(self.G.nodes[v2]['stack'])
         chld1  =  self.G.nodes[v1]['children']
         chld2  =  self.G.nodes[v2]['children']
-
-        # Equivalent exec time characteristics (estimated)
-        # a1 = float(self.G.nodes[v1]['aet'])
-        # b1 = float(self.G.nodes[v1]['bet'])
-        # a2 = float(self.G.nodes[v2]['aet'])
-        # b2 = float(self.G.nodes[v2]['bet'])
-        # H.nodes[v1]['aet'],H.nodes[v1]['bet'] = \
-        # equivExecTimeCharacteristics(a1,a2,b1,b2,stack1,stack2)
-
-        # # Equivalent power characteristics (estimated)
-        # a1 = float(self.G.nodes[v1]['ap'])
-        # b1 = float(self.G.nodes[v1]['bp'])
-        # a2 = float(self.G.nodes[v2]['ap'])
-        # b2 = float(self.G.nodes[v2]['bp'])
-        # H.nodes[v1]['ap'] = 0.5*(a1+a2)
-        # H.nodes[v1]['bp'] = 0.5*(b1+b2)
-        # H.nodes[v1]['ap'],H.nodes[v1]['bp'] = \
-        # equivPowerCharacteristics(a1,a2,b1,b2,stack1,stack2)
 
         H.nodes[v1]['aet'] = AETDICT[benchName]
         H.nodes[v1]['bet'] = BETDICT[benchName]
@@ -432,6 +377,23 @@ class ATG(object):
         idx = np.argmin([self.getPower(u,m)*self.getExecutionTime(u,m) for m in range(1,M+1)])
         return idx+1
 
+    def getReadyNodes(self,T,U) :
+        """
+            Find all such nodes in 
+            T, all of whose predecessors
+            lie in U
+        """
+        # readyNodes = set()
+        # T2 = set(T)
+        # for t in T2 :
+        #     pred = set(self.G.predecessors(t))
+        #     if pred <= U : 
+        #         if t in (T2-U) :
+        #             readyNodes.add(t)
+        # return readyNodes
+        nbdT = (ft.reduce(lambda u,v : u|v,[set(self.G.predecessors(t)) | set([t]) for t in T]) & set(T)) - U
+        return nbdT
+
     def getMinAlloc(self,u,D,M):
         """
             Get the minimum allocation of
@@ -457,57 +419,18 @@ class ATG(object):
         """
         et  = 0.0
         pkp = 0.0
+        startL = []
+        finishL = []
+        pkpL= []
         for u in self.G.nodes(data=True):
             m = u[1]['alloc']
-            start = u[1]['start']
-            finish = u[1]['finish'] 
-            et += finish-start
-            
-            pkp = np.max([pkp,self.getPower(u[0],m)])
-            # print(f'node({u[0]})|power:{self.getPower(u[0],m)},alloc:{m}')
+            startL.append(u[1]['start'])
+            finishL.append(u[1]['finish'])
+            pkpL.append(self.getPower(u[0],m))
+
+        et = np.max(finishL) - np.min(startL)
+        pkp = np.max(pkpL)
         return (pkp,et)
-
-def objfunc(x,grad):
-    N = len(grad)
-    for i in range(N-1):
-        grad[i] = 0
-    grad[N-1] = 1
-
-    # return the function objective
-    return x[N-1]
-
-def constraintsgradEt(x,grad,a,b,D):
-    N = len(grad)
-    f = 0
-    for i in range(N-1):
-        grad[i] = -a[i]/((a[i]*x[i]+b[i])*(a[i]*x[i]+b[i]))
-        f      += 1/(a[i]*x[i]+b[i])
-    grad[N-1] = 0
-    print(f'constraintsgradEt({x},{f-D})')
-    return f-D
-
-def constraintsgradPower(x,grad,a,b,idx):
-    N = len(grad)
-    for i in range(N-1):
-        if i == idx:
-            grad[i] = a[i]
-        else:
-            grad[i] = 0.0
-    grad[N-1] = -1
-    f = a[idx]*x[idx] + b[idx] - x[N-1]
-    print(f'constraintsgradPower({x},{idx})')
-    return f
-
-def computePkp(x,a,b):
-    """
-        Compute the peak power
-        of the allocation
-    """
-    max = 0.0
-    for i,u in enumerate(x):
-        php = u*a[i] + b[i]
-        max = np.max([max,php])
-    return max
 
 def cvxallocTest():
     """
@@ -599,7 +522,7 @@ def initalloc(atg,D):
         start = finish
     return maxpkp,finish
 
-def PkMin(fl2,D):
+def PkMin(fl2,D,debugPrint=False):
     # oldpkp = 0.0
     pkp    = 0.0 
     atg = ATG(fl2)
@@ -609,48 +532,60 @@ def PkMin(fl2,D):
     pkp,finish = initalloc(atg,D)
     completelySerialized = False
     
-    while(True):
-        oldatg     = copy.deepcopy(atg)
-        oldpkp     = pkp
-        oldfin     = finish
-        # print(f'AftCVXIteration:{i},oldpkp:{oldpkp},oldfinish:{oldfin},D:{D}')
-
-        pkp,finish = cvxalloc(atg,D)
-        i += 1
+    while(not completelySerialized):
+        if i == 0 :
+            oldatg     = copy.deepcopy(atg)
+            oldpkp     = pkp
+            oldfin     = finish
+        else :
+            pkp1,finish1 = atg.getTotalEtPower()
+            if pkp1 < oldpkp and finish1 <= D: # Save the best encountered allocation
+                oldatg     = copy.deepcopy(atg)
+                oldpkp     = pkp
+                oldfin     = finish
         
-        # Deadline Missed
-        if finish > D :
-            # print(f'STOPPED : DEADLINE MISS')
-            break
-        # Covergence
-        # if np.abs(oldpkp-pkp) < tol:
-        #     break
-        # Old configuration was better
-        if oldpkp < pkp :
-            # print(f'STOPPED : PREVIOUS CONFIG BETTER')
-            break
-        if completelySerialized :
-            # print(f'STOPPED : COMPLETELY SERIALIZED')
-            break
+        if debugPrint :
+            pkp2,finish2 = atg.getTotalEtPower()
+            print(f'iter_Beg@{i}|Et:{finish2},Pkp:{pkp2},ATG:{atg}\n')
 
-        # Update the graph and rerun
+        # CVX Opt Step
+        pkp_cvx,finish_cvx = cvxalloc(atg,D)
+        if (pkp_cvx < oldpkp) and (finish_cvx <= D) : # Save the best encountered allocation
+            oldatg  = copy.deepcopy(atg)
+            oldpkp  = pkp_cvx
+            oldfin  = finish_cvx
+        
+        if debugPrint :
+            pkp2,finish2 = atg.getTotalEtPower()
+            print(f'iter_AftCVXOpt@{i}|Et:{finish2},Pkp:{pkp2},ATG:{atg}\n')
+
+        # Deadline Missed
+        # if finish > D :
+        #     print(f'STOPPED : DEADLINE MISS')
+        #     break
+        # if oldpkp < pkp :
+        #     print(f'STOPPED : PREVIOUS CONFIG BETTER')
+        #     break
+
+        # DAG merging
         ac = atg.computeBestPair(MAXCPU)
         if ac:
             a,c = ac
             atg.mergeNodes(a,c)
-
-            # stacka = atg.getParamVal(a,'stack')
-            # stackc = atg.getParamVal(c,'stack')
-            # print(f'Merging {a} and {c}')
-        # No more anti-chains
         else :
             completelySerialized = True
 
+        # AFter DAG merging
+        # if debugPrint :
+        #     pkp2,finish2 = atg.getTotalEtPower()
+        #     print(f'iter_AftDAGMerging@{i}|Et:{finish2},Pkp:{pkp2},ATG:{atg}\n')
+        
+        i += 1
 
     s2  = time.time()
     # Verfication
     verpkp, verfinish = oldatg.getTotalEtPower()
-    # print(f'Verify|pkp:{verpkp},finish:{verfinish}')
+    print(f'Best Configuration|Et:{verfinish},Pkp:{verpkp}')
     return oldpkp,oldfin,(s2-s1),oldatg
 
 if __name__=="__main__":
