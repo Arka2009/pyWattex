@@ -76,8 +76,8 @@ def main():
     # fl4.close()
 
 if __name__=="__main__":
-    # main()
-    motivationalExperiment()
+    main()
+    # motivationalExperiment()
     # Gfl = f'dag3/random82_0.dot'
     # G = ut.ATG(Gfl)
     # print(G.getMinAlloc(2,32))

@@ -104,6 +104,17 @@ APDICT = dict(zip(BENCH,[extractCharacteristics(b)[4] for b in BENCH]))
 BPDICT = dict(zip(BENCH,[extractCharacteristics(b)[5] for b in BENCH]))
 generateCombinedBench(4)
 
+def generateAllocForChildren(M,N) :
+    """
+        Divide M cores into N
+        components equally.
+    """
+    if M < N :
+        raise ValueError(f'Cannot allocate {M} cores to {N} players')
+    alloc = [int(M/N) for _ in range(N)]
+    for u in range(M%N) :
+        alloc[u] += 1
+    return alloc
 
 class ATG(object):
     """
@@ -146,9 +157,6 @@ class ATG(object):
         """
         return set([str(u) for u in self.G.nodes])
 
-    # def getReadyNodes(self,T,U) :
-    #     pass
-
     def updateAllocParams(self,u,m,r,start,finish):
         """
             Update the allocation
@@ -161,23 +169,31 @@ class ATG(object):
     def getExecutionTime(self,u,m):
         """
             Obtain the execution time
-            with m cores for node u.
+            for node u. The cores
+            are assumed to divided equally amongst
+            children.
 
             If you have children stacked on
-            top of you compute the execution
-            time and max all of them
+            top of you compute the max execution
+            time all of them
         """
-        et  = []
         u   = str(u)
-        for child in self.G.nodes[u]['children']:
-            aet = float(child[1]['aet'])
-            bet = float(child[1]['bet'])
-            m2  = int(child[1]['alloc'])
-            et.append(1/(aet*m2+bet))
-        aet = float(self.G.nodes[u]['aet'])
-        bet = float(self.G.nodes[u]['bet'])
-        et.append(1/(aet*m+bet))
-        return np.max(et)
+        stk = int(self.G.nodes[u]['stack'])
+        allocAll = generateAllocForChildren(m,stk)
+        if stk == 1 :
+            aet = float(self.G.nodes[u]['aet'])
+            bet = float(self.G.nodes[u]['bet'])
+            m2 = allocAll[0]
+            return 1/(aet*m2+bet)
+        else :
+            et = []
+            allChildren = self.G.nodes[u]['children']
+            for i,child in enumerate(allChildren):
+                aet = float(child[1]['aet'])
+                bet = float(child[1]['bet'])
+                m2  = allocAll[i]
+                et.append(1/(aet*m2+bet))
+            return np.max(et)
 
     def getPower(self,u,m):
         """
@@ -185,15 +201,29 @@ class ATG(object):
             power a node u
             with allocation-m
         """
-        ap = float(self.G.nodes[str(u)]['ap'])
-        bp = float(self.G.nodes[str(u)]['bp'])
-        p  = ap*m + bp
-        return p
+        u   = str(u)
+        stk = int(self.G.nodes[u]['stack'])
+        allocAll = generateAllocForChildren(m,stk)
+        if stk == 1 :
+            ap = float(self.G.nodes[str(u)]['ap'])
+            bp = float(self.G.nodes[str(u)]['bp'])
+            m2 = allocAll[0]
+            return ap*m2 + bp
+        else :
+            pkp = []
+            allChildren = self.G.nodes[u]['children']
+            for i,child in enumerate(allChildren):
+                ap = float(child[1]['ap'])
+                bp = float(child[1]['bp'])
+                m2 = allocAll[i]
+                pkp.append(ap*m2 + bp)
+            return np.sum(pkp)
+
 
     def mergeNodes(self,v1,v2):
         """
             Merge two nodes
-            v1 and v2. 
+            v1 and v2. Put v2 onto v1
             1. Remove edges of (u,v2)/(v2,u) whenever
             (u,v1)/(v1,u) belongs to the edge set.
             2. updates aet,bet,ap,bp for v1
@@ -211,7 +241,7 @@ class ATG(object):
         iEv2 = list(self.G.in_edges(v2))
         oEv2 = list(self.G.edges(v2)) # OutEdges incident on v2
         
-        # Remove the edges and nodes
+        # Remove v2 and edges incident on v2
         for e in iEv2 :
             u,_ = e
             allE.remove(e)
@@ -230,22 +260,31 @@ class ATG(object):
         H.add_edges_from(allE)
 
         # Equivalent benchmark
-        H.nodes[v1]['bench'] += ','+self.G.nodes[v2]['bench']
-        benchName = H.nodes[v1]['bench']
+        benchName = H.nodes[v1]['bench']+','+self.G.nodes[v2]['bench']
         
-        # Append the benchmark details
-        stack1 =  int(self.G.nodes[v1]['stack'])
-        stack2 =  int(self.G.nodes[v2]['stack'])
+        # Obtain the children and stacking for
+        stackv1 =  int(self.G.nodes[v1]['stack'])
+        stackv2 =  int(self.G.nodes[v2]['stack'])
         chld1  =  self.G.nodes[v1]['children']
         chld2  =  self.G.nodes[v2]['children']
 
+        # Obtain benchmark characteristics (Used only during CVX optimization)
+        H.nodes[v1]['bench'] = benchName
         H.nodes[v1]['aet'] = AETDICT[benchName]
         H.nodes[v1]['bet'] = BETDICT[benchName]
         H.nodes[v1]['ap'] = APDICT[benchName]
         H.nodes[v1]['bp'] = BPDICT[benchName]
         
-        H.nodes[v1]['stack'] = stack1 + stack2
-        H.nodes[v1]['children'] = chld1 + chld2 + [(v2,self.G.nodes[v2])] + [(v1,self.G.nodes[v1])]
+        # Merge the child nodes
+        if stackv1 == 1 and stackv2 == 1: # No previous stacked children neither in v1 or v2
+            H.nodes[v1]['children'] = [(v2,self.G.nodes[v2])] + [(v1,self.G.nodes[v1])]
+            H.nodes[v1]['stack'] = 2
+        elif stackv1 == 1 : # v2 has non-empty children
+            H.nodes[v1]['children'] = chld2 + [(v1,self.G.nodes[v1])]
+            H.nodes[v1]['stack'] = 1 + stackv2
+        else : # Both have non-empty children
+            H.nodes[v1]['children'] = chld1 + chld2
+            H.nodes[v1]['stack'] = stackv1 + stackv2
         
         # Reset the graph
         self.G = H
@@ -292,7 +331,7 @@ class ATG(object):
         # Compute some structural properties apriori
         H = list(nxdag.antichains(self.G))
         # nxdr.write_dot(self.G,f'demo.dot')
-        A = [tuple(h) for h in H if len(h) == 2]
+        A = [tuple(h) for h in H if (len(h) == 2) and (int(self.G.nodes[h[0]]['stack']) <= 4) and (int(self.G.nodes[h[1]]['stack']) <= 4)]
         return A
 
     def getWidth(self):
@@ -304,9 +343,10 @@ class ATG(object):
     def computeBestPair(self,m):
         """
             Obtain a pair of AC tasks
-            which when stack yields the
+            which when stacked yields the
             greatest reduction in execution 
-            time
+            time. Stop when the stacking factor
+            is already 4.
         """
         A   = self.computeAC()
         if len(A) == 0:
@@ -329,8 +369,8 @@ class ATG(object):
         bet = float(self.G.nodes[u]['bet'])
         ap  = float(self.G.nodes[u]['ap'])
         bp  = float(self.G.nodes[u]['bp'])
-
-        return (aet,bet,ap,bp)
+        llim = float(self.G.nodes[u]['stack'])
+        return (aet,bet,ap,bp,llim)
 
     def getParamVal(self,u,param):
         u     = str(u)
@@ -346,28 +386,30 @@ class ATG(object):
         if param == 'rank':
             rank = val
             # print(f'setting rank for {u} = {rank}')
-            for n in self.G.nodes[u]['children'] :
-                n[1][param] = rank
+            for child in self.G.nodes[u]['children'] :
+                child[1][param] = rank
         if param == 'alloc':
-            alloc = val
-            stack = int(self.G.nodes[u]['stack'])
-            self.G.nodes[u][param] = int(alloc)
-            # print(f'setting alloc for {u} = {int(alloc)}')
-            for n in self.G.nodes[u]['children'] :
-                n[1][param] = int(alloc/stack)
+            stk = int(self.G.nodes[u]['stack'])
+            allocAll = generateAllocForChildren(val,stk)
+            if stk == 1 :
+                self.G.nodes[u][param] = allocAll[0]
+            else :
+                allChildren = self.G.nodes[u]['children']
+                for i,child in enumerate(allChildren) :
+                    child[1][param] = allocAll[i]
         if param == 'start':
             start = val
-            for n in self.G.nodes[u]['children'] :
-                n[1][param] = start
+            for child in self.G.nodes[u]['children'] :
+                child[1][param] = start
         if param == 'finish':
             # Different member of the stack will have different finish times
-            for n in self.G.nodes[u]['children'] :
-                alloc  = int(n[1]['alloc'])
-                start  = int(n[1]['start'])
-                aet    = float(n[1]['aet'])
-                bet    = float(n[1]['bet'])
+            for child in self.G.nodes[u]['children'] :
+                alloc  = int(child[1]['alloc'])
+                start  = int(child[1]['start'])
+                aet    = float(child[1]['aet'])
+                bet    = float(child[1]['bet'])
                 finish = start + 1/(aet*alloc+bet)
-                n[1]['finish'] = finish
+                child[1]['finish'] = finish
    
     def getPace(self,u,M):
         """
@@ -478,18 +520,20 @@ def cvxalloc(atg,D):
     bet = []
     ap  = []
     bp  = []
+    llim = []
     N   = len(T)         # Number of phases, also must match the length of the arrays declared before
     for r,t in enumerate(T):
-        a1,b1,a2,b2 = atg.getNodeParams(t)
+        a1,b1,a2,b2,llim1 = atg.getNodeParams(t)
         aet.append(a1)
         bet.append(b1)
         ap.append(a2)
         bp.append(b2)
+        llim.append(llim1)
         # atg.setParamVal(t,'rank',r)
     
     opt = tcvx.CPPCVXOptimizer()
     x   = [1 for _ in range(N)] + [0.0]
-    opt.setParams(N,x,aet,bet,ap,bp,1,MAXCPU)
+    opt.setParams(N,x,aet,bet,ap,bp,llim,MAXCPU)
     opt.optimize(D)
     xopt = opt.getOpt()
 
@@ -500,16 +544,17 @@ def cvxalloc(atg,D):
     xopt2  = []
     for r,t in enumerate(T) :
         atg.setParamVal(t,'rank',r)
-        stack = int(atg.getParamVal(t,'stack'))
-        alloc = (stack)*(math.ceil(xopt[r]/(stack)))  # Allocation for the entire stack
-        # print(f'cvxalloc({t})|stack:{stack},alloc:{alloc},xopt:{xopt[r]}')
-        atg.setParamVal(t,'alloc',alloc)
-        finish = start + atg.getExecutionTime(t,alloc)
+
+        # Allocation for myself. Allocation for my children is done within setParamVal
+        allocAllStack = math.ceil(xopt[r])
+        atg.setParamVal(t,'alloc',allocAllStack)
+
+        finish = start + atg.getExecutionTime(t,allocAllStack)
         atg.setParamVal(t,'start',start)
         atg.setParamVal(t,'finish',finish)
         start = finish
-        maxpkp = np.max([maxpkp,atg.getPower(t,alloc)])
-        xopt2.append(alloc)
+        maxpkp = np.max([maxpkp,atg.getPower(t,allocAllStack)])
+        xopt2.append(allocAllStack)
     
     return maxpkp,finish
 

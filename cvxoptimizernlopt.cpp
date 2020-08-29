@@ -152,7 +152,7 @@ double cpp_cvx_optimizer(
     vector<double> &ap,\
     vector<double> &bp,\
     double D,\
-    int llim,\
+    vector<double> &llim,\
     int ulim) 
 {
     // int NPH = x.size()-1;                // Number of phases
@@ -162,7 +162,7 @@ double cpp_cvx_optimizer(
     std::vector<double> lb(NPH+1);
     std::vector<double> ub(NPH+1);
     for (int i = 0; i < NPH; i++) {
-        lb[i] = llim;
+        lb[i] = llim[i];
         ub[i] = ulim;
     }
     lb[NPH] = 0.0;
@@ -213,7 +213,7 @@ double cpp_cvx_optimizer(
 #ifdef TESTCVXBIN
 int main() {
     int NPH = 4;
-    int LLIM = 1;
+    vector<double> LLIM = {1,1,1,1};
     int ULIM = 16;
     vector<double> x(NPH+1);
     vector<double> aet = {0.9306707270772263, 0.781253569721745, 1.96668139375962, 1.7920940392776321};
@@ -263,7 +263,7 @@ class CPPCVXOptimizer {
         __phase_t bet;
         __phase_t ap;
         __phase_t bp;
-        int llim;
+        __phase_t llim;
         int ulim;
     public:
         CPPCVXOptimizer() : NPH(-1) {}
@@ -274,7 +274,7 @@ class CPPCVXOptimizer {
             py::list bet,\
             py::list ap,\
             py::list bp,\
-            int llim,\
+            py::list llim,\
             int ulim
         );
         double optimize(double D);
@@ -288,19 +288,18 @@ void CPPCVXOptimizer::setParams(
             py::list bet,\
             py::list ap,\
             py::list bp,\
-            int llim,\
+            py::list llim,\
             int ulim
         ) {
     this->NPH = NPH;
-    this->llim = llim;
     this->ulim = ulim;
 
-    this->x   = toSTLVec<double>(x);
-    this->aet = toSTLVec<double>(aet);
-    this->bet = toSTLVec<double>(bet);
-    this->ap  = toSTLVec<double>(ap);
-    this->bp  = toSTLVec<double>(bp);
-
+    this->x    = toSTLVec<double>(x);
+    this->aet  = toSTLVec<double>(aet);
+    this->bet  = toSTLVec<double>(bet);
+    this->ap   = toSTLVec<double>(ap);
+    this->bp   = toSTLVec<double>(bp);
+    this->llim = toSTLVec<double>(llim);
 }
 
 py::list CPPCVXOptimizer::getOpt() {
