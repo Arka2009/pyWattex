@@ -418,7 +418,7 @@ class ATG(object):
             Used by the DnC algorithm
         """
         idx = np.argmin([self.getPower(u,m)*self.getExecutionTime(u,m) for m in range(1,M+1)])
-        return idx+1
+        return idx
 
     def getReadyNodes(self,T,U) :
         """
@@ -428,12 +428,13 @@ class ATG(object):
         """
         # nbdT = (ft.reduce(lambda u,v : u|v,[set(self.G.predecessors(t)) | set([t]) for t in T]) & set(T)) - U
         # return nbdT
-        readyT = set()
-        for t in T :
-            pred = set(self.G.predecessors(t))
-            if pred <= U :
-                readyT.add(t)
-        return readyT
+        # readyT = set()
+        # for t in T :
+        #     pred = set(self.G.predecessors(t))
+        #     if pred <= U :
+        #         readyT.add(t)
+        # return readyT
+        return self.getReadyNodes2(T,U)
 
     def getReadyNodes2(self,T,U) :
         """
@@ -443,7 +444,7 @@ class ATG(object):
         """ 
         readyNodes = set()
         for t in T :
-            pred = set(self.G.predecessors(t))
+            pred = set(self.G.predecessors(t)) & set(T)
             if (pred <= U) and (t not in U):
                 readyNodes.add(t)
         return readyNodes

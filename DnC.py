@@ -18,9 +18,7 @@ def DnCDAGSchedule(T,M,atg):
         Graham's list scheduling
 
         Format of IS := <node-id,alloc,start,finish>
-        T is just a list of nodes
-
-        T must have the same format as IS
+        T is just a collection of nodes
     """
     assert atg.valid, f'DAG not initialized'
     # pprint.pprint(readyT)
@@ -28,31 +26,41 @@ def DnCDAGSchedule(T,M,atg):
     IS     = []                       # Data structure to hold schedule
     exT    = []                       # Priority queue of executing nodes
     U      = set()                    # Set of already finished nodes
-    readyT = atg.getReadyNodes2(T,U)   # Set of enabled nodes which are not already executed
+    T2     = set(copy.deepcopy(T))    # Local copy of nodes to be processed
+    readyT = atg.getReadyNodes2(T2,U)  # Set of enabled nodes which are not already executed
     time   = 0
-    i = 0
-    # print(f'TotalTask:{len(T)}')
-    while len(readyT) > 0:
-        u = readyT.pop() # pop a single task/node
-        m = atg.getPace(u,M) # WARNING : Are you sure you want to run at pace configuration
-        if readyM >= m : # Enough cores are available, start the execution of u
+
+    # print(f'TotalTask:{T2}')
+    while len(T2) > 0:
+        #m = atg.getPace(u,M) # WARNING : Are you sure you want to run at pace configuration
+        if readyM >= 1 and len(readyT) > 0 : # There are enough cores and tasks to execute
+            u = readyT.pop() # pop a single task/node
             start  = time
-            finish = start+atg.getExecutionTime(u,m)
-            heapq.heappush(exT,(finish,u,m))
-            IS.append((u,m,start,finish))
-            readyM -= m
-            # print(f'{time}@Added:{u},Completed:{len(U)},readyNodes:{readyT}')
+            finish = start+atg.getExecutionTime(u,1)
+            heapq.heappush(exT,(finish,u,1))
+            IS.append((u,1,start,finish))
+            readyM -= 1
+            # print(f'{time}@Added:{u}')
         else : # Advance time, finish the execution of v, add the successors of v
-            readyT.add(u) # put back the popped element
-            finish,v,m2 = heapq.heappop(exT)
-            U.add(v)
-            readyM += m2
-            readyT |= atg.getReadyNodes2(T,U)
-            time = finish
+            # readyT.add(u) # put back the popped element
+            if (len(exT) > 0) :
+                finish,v,m2 = heapq.heappop(exT)
+                executingNodes = set([u[1] for u in exT])
+                U.add(v)
+                T2.remove(v)
+                readyM += m2
+                readyT = atg.getReadyNodes2(T,U) - executingNodes
+                time = finish
+                # print(f'{time}@Removed:{v},ReadyNodes:{readyT},TotalNodes:{T2}')
+            else :
+                print(f'Graham({time:.2f})|readyT:{readyT},readyM:{readyM},T:{T2},exT:{exT}')
+                raise ValueError(f'Nobody is executing')
             # print(f'{time}@readyNodes:{readyT}')
             # readyT = atg.getReadyNodes(T,U)
             # T &= readyT
+    # print(f'\n\n\n')
     return IS
+
 
 def checkIndependence(T,atg):
     """
@@ -350,9 +358,10 @@ def DnCLike(fl2,D):
     return p,f,(s2-s1),mMax
 
 def main():
-    N   = 69
-    D   = 18*N
-    fl2 = f'dag3/random{N}.dot'
+    N   = 100
+    id  = 2
+    D   = 17*N
+    fl2 = f'benchmarks/dag4/random{N}_{id}.dot'
     atg = ut.ATG(fl2)
     S = DnC(atg,ut.MAXCPU,D)
     pprint.pprint(S)

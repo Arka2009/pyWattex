@@ -41,21 +41,21 @@ def main():
     # print(f'Completed numTasks experiments')
     # flT.close()
 
-    for id in range(2,3): # 101
+    for id in range(2,20): # 101
         N = 100
         D   = 17*N
         Gfl = f'benchmarks/dag4/random{N}_{id}.dot'
         p2,f2,r2,_= ut.PkMin(Gfl,D)
         p1,f1,r1,_ = dnc.DnCLike(Gfl,D)
         print(f'{id},{p2/p1}',file=fl2)
-        # print(f'{id},{p2/p1}')
-        pprint.pprint({
-            'id' : id,
-            'pkp_DnCLike':p1,
-            'pkp_PkMin':p2,
-            'Et_DnCLike':f1/D,
-            'Et_PkMin':f2/D
-        })
+        print(f'{id},{p2/p1}')
+        # pprint.pprint({
+        #     'id' : id,
+        #     'pkp_DnCLike':p1,
+        #     'pkp_PkMin':p2,
+        #     'Et_DnCLike':f1/D,
+        #     'Et_PkMin':f2/D
+        # })
         print(f'\n')
     print(f'Completed numRandom experiments')
     
