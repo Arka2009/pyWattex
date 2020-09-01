@@ -22,7 +22,7 @@ def main():
     fl3 = open(f'numDeadlines.csv','w')
     fl4 = open(f'runtime.csv','w')
     print(f'NumTasks,NormalizedPerf',file=fl1)
-    print(f'WorkloadId,NormalizedPerf',file=fl2)
+    print(f'WorkloadId,NormalizedPerfPkp,NormalizedPerfEnergy',file=fl2)
     print(f'Deadlines,NormalizedPerf',file=fl3)
     print(f'NumTasks,DnCRuntime,PkMinRuntime',file=fl4)
     # flT = open('motiv.txt','w')
@@ -42,14 +42,14 @@ def main():
     # print(f'Completed numTasks experiments')
     # flT.close()
 
-    for id in range(2,20): # 101
+    for id in range(1,101): # 101
         N = 100
         D   = 17*N
         Gfl = f'benchmarks/dag4/random{N}_{id}.dot'
         p1,f1,allM1,e1,r1 = dnc.DnCLike(Gfl,D)
         # p1,f1,allM1,r1 = (1,1,1,1)
         p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D)
-        # print(f'{id},{p2/p1},{e2/e1}',file=fl2)
+        print(f'{id},{p2/p1},{e2/e1}',file=fl2)
         print(f'{id},{p2/p1},{e2/e1},{allM1},{allM2}')
         # pprint.pprint({
         #     'id' : id,
