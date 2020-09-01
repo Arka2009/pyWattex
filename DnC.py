@@ -29,20 +29,30 @@ def DnCDAGSchedule(T,M,atg):
     T2     = set(copy.deepcopy(T))    # Local copy of nodes to be processed
     readyT = atg.getReadyNodes2(T2,U)  # Set of enabled nodes which are not already executed
     time   = 0
+    allocSuccess = True
 
     # print(f'TotalTask:{T2}')
     while len(T2) > 0:
-        #m = atg.getPace(u,M) # WARNING : Are you sure you want to run at pace configuration
-        if readyM >= 1 and len(readyT) > 0 : # There are enough cores and tasks to execute
+        # Attempt to execute a task
+        if len(readyT) > 0 :
             u = readyT.pop() # pop a single task/node
-            start  = time
-            finish = start+atg.getExecutionTime(u,1)
-            heapq.heappush(exT,(finish,u,1))
-            IS.append((u,1,start,finish))
-            readyM -= 1
-            # print(f'{time}@Added:{u}')
-        else : # Advance time, finish the execution of v, add the successors of v
-            # readyT.add(u) # put back the popped element
+            m = atg.getPace(u,M)
+            if readyM >= m : # There are enough cores and tasks to execute
+                start  = time
+                # print(f'M:{M},readyM:{readyM},m:{m}')
+                finish = start+atg.getExecutionTime(u,m)
+                heapq.heappush(exT,(finish,u,m))
+                IS.append((u,m,start,finish))
+                readyM -= m
+                allocSuccess = True                
+            else :
+                allocSuccess = False
+                readyT.add(u)
+        else :
+            allocSuccess = False
+        
+        # Advance the time, when not successful
+        if not allocSuccess :
             if (len(exT) > 0) :
                 finish,v,m2 = heapq.heappop(exT)
                 executingNodes = set([u[1] for u in exT])
@@ -51,14 +61,9 @@ def DnCDAGSchedule(T,M,atg):
                 readyM += m2
                 readyT = atg.getReadyNodes2(T,U) - executingNodes
                 time = finish
-                # print(f'{time}@Removed:{v},ReadyNodes:{readyT},TotalNodes:{T2}')
             else :
-                print(f'Graham({time:.2f})|readyT:{readyT},readyM:{readyM},T:{T2},exT:{exT}')
+                print(f'Graham({time:.2f})|readyT:{readyT},readyM:{readyM},T:{T2},exT:{exT},m:{m},u:{u}')
                 raise ValueError(f'Nobody is executing')
-            # print(f'{time}@readyNodes:{readyT}')
-            # readyT = atg.getReadyNodes(T,U)
-            # T &= readyT
-    # print(f'\n\n\n')
     return IS
 
 
@@ -316,46 +321,20 @@ def DnC(atg,M,D):
     S        = DnCRecursive(IS,IS,M,D,atg,0,finish)
     return S
 
-def computeMaxPkp(IS,atg):
-    time   = 0.0
-    power  = 0.0
-    totalM = 0
-    IS.sort(key=lambda u : u[2])
-    finishevtQ = []
-    allpower   = []
-    allM       = []
-
-    for i,t in enumerate(IS):
-        # Add up power values
-        u,m,start,finish = t
-        power += atg.getPower(u,m)
-        time  += start
-        totalM += m
-        heapq.heappush(finishevtQ,(finish,atg.getPower(u,m),m))
-
-        # Deduct power values
-        # cummuPower = np.sum([atg.getPower(u1,m1) for u1,m1,s1,f1 in IS if f1 <= time])
-        # power -= cummuPower
-        if len(finishevtQ) > 0:
-            f2,p2,m2 = finishevtQ[0]
-            if time >= f2 :
-                power -= p2
-                totalM -= m2
-                heapq.heappop(finishevtQ)
-        allpower.append(power)
-        allM.append(totalM)
-        # print(f'iter({i}):{power}')
-    return np.max(allpower),np.max(allM)
-
 def DnCLike(fl2,D):
     atg = ut.ATG(fl2)
     s1  = time.time()
     S   = DnC(atg,ut.MAXCPU,D)
-    # pprint.pprint(S)
     s2  = time.time()
-    f   = np.max([u[3] for u in S])
-    p,mMax   = computeMaxPkp(S,atg)
-    return p,f,(s2-s1),mMax
+    for i,s in enumerate(S) :
+        u,m,start,finish = s
+        atg.setParamVal(u,'rank',i)
+        atg.setParamVal(u,'alloc',m)
+        atg.setParamVal(u,'start',start)
+        atg.setParamVal(u,'finish',finish)
+    
+    verpkp,verfinish,maxM = atg.getTotalEtPower()
+    return (verpkp,verfinish,maxM,(s2-s1))
 
 def main():
     N   = 100
@@ -366,7 +345,7 @@ def main():
     S = DnC(atg,ut.MAXCPU,D)
     pprint.pprint(S)
     f   = np.max([u[3] for u in S])
-    p,m = computeMaxPkp(S,atg)
+    p,m = ut.computeMaxPkp(S,atg)
     print(f'DnC like with {N} tasks and max {m} cores : {p}, Slack:{D-f}')
     # atg.dumpDot()
 

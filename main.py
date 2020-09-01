@@ -9,11 +9,12 @@ import utils as ut
 import DnC as dnc
 import matplotlib.pyplot as plt
 from scipy.stats import bernoulli
+import PkMin as pkp
 
 def motivationalExperiment():
     Gfl = f'benchmarks/dag4/random100_2.dot' # Use f'benchmarks/motivation.dot' for motiv
     D   = 1700 # Use 425 for motiv
-    p2,f2,r2,oldGfl = ut.PkMin(Gfl,D,True)
+    p2,f2,r2,oldGfl = pkp.PkMin(Gfl,D,True)
 
 def main():
     fl1 = open(f'numTasks.csv','w')
@@ -45,10 +46,11 @@ def main():
         N = 100
         D   = 17*N
         Gfl = f'benchmarks/dag4/random{N}_{id}.dot'
-        p2,f2,r2,_= ut.PkMin(Gfl,D)
-        p1,f1,r1,_ = dnc.DnCLike(Gfl,D)
+        p1,f1,allM1,r1 = dnc.DnCLike(Gfl,D)
+        # p1,f1,allM1,r1 = (1,1,1,1)
+        p2,f2,allM2,r2 = pkp.PkMin(Gfl,D)
         print(f'{id},{p2/p1}',file=fl2)
-        print(f'{id},{p2/p1}')
+        # print(f'{id},{p2/p1},{f2/f1},{allM1},{allM2}')
         # pprint.pprint({
         #     'id' : id,
         #     'pkp_DnCLike':p1,
@@ -56,7 +58,7 @@ def main():
         #     'Et_DnCLike':f1/D,
         #     'Et_PkMin':f2/D
         # })
-        print(f'\n')
+        # print(f'\n')
     print(f'Completed numRandom experiments')
     
     # p2=np.Infinity

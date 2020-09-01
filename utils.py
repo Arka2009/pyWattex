@@ -11,14 +11,47 @@ import networkx.drawing.nx_agraph as nxdr
 import networkx.algorithms as nalgs
 import networkx.algorithms.dag as nxdag
 import matplotlib.pyplot as plt
-import numpy as np
 import testcvxopt as tcvx
+import numpy as np
 import itertools as it
 import functools as ft
+import heapq
 
 BENCH         = ['dfs','cilksort','fib','pi','queens']
 L             = 1/0.52
 MAXCPU        = 16
+
+def computeMaxPkp(IS,atg):
+    time   = 0.0
+    power  = 0.0
+    totalM = 0
+    IS.sort(key=lambda u : u[2])
+    finishevtQ = []
+    allpower   = []
+    allM       = []
+    allEt      = []
+    for i,t in enumerate(IS):
+        # Add up power values
+        u,m,start,finish = t
+        power += atg.getPower(u,m)
+        time  += start
+        totalM += m
+        heapq.heappush(finishevtQ,(finish,atg.getPower(u,m),m))
+
+        # Deduct power values
+        # cummuPower = np.sum([atg.getPower(u1,m1) for u1,m1,s1,f1 in IS if f1 <= time])
+        # power -= cummuPower
+        if len(finishevtQ) > 0:
+            f2,p2,m2 = finishevtQ[0]
+            if time >= f2 :
+                power -= p2
+                totalM -= m2
+                heapq.heappop(finishevtQ)
+        allpower.append(power)
+        allM.append(totalM)
+        allEt.append(finish)
+        # print(f'iter({i}):{power}')
+    return np.max(allpower),np.max(allM),np.max(allEt)
 
 def combineBench(Nr):
     """
@@ -219,7 +252,14 @@ class ATG(object):
                 pkp.append(ap*m2 + bp)
             return np.sum(pkp)
 
-
+    def debugPrint(self,prefixStr,u):
+        """
+            Display the state of node u
+        """
+        print(prefixStr,end='\t')
+        pprint.pprint((u,self.G.nodes[str(u)]))
+        print(f'\n')
+    
     def mergeNodes(self,v1,v2):
         """
             Merge two nodes
@@ -276,9 +316,13 @@ class ATG(object):
         H.nodes[v1]['bp'] = BPDICT[benchName]
         
         # Merge the child nodes
+        # print(f'MergingX34 {v2} onto {v1}|stackv1:{stackv1},stackv2:{stackv2}')
         if stackv1 == 1 and stackv2 == 1: # No previous stacked children neither in v1 or v2
             H.nodes[v1]['children'] = [(v2,self.G.nodes[v2])] + [(v1,self.G.nodes[v1])]
             H.nodes[v1]['stack'] = 2
+        elif stackv2 == 1 : # v1 has non-empty children
+            H.nodes[v1]['children'] = chld1 + [(v2,self.G.nodes[v2])]
+            H.nodes[v1]['stack'] = 1 + stackv1
         elif stackv1 == 1 : # v2 has non-empty children
             H.nodes[v1]['children'] = chld2 + [(v1,self.G.nodes[v1])]
             H.nodes[v1]['stack'] = 1 + stackv2
@@ -288,8 +332,9 @@ class ATG(object):
         
         # Reset the graph
         self.G = H
+        # if v1 == '16' or v1 == '19' or v1 == '17':
+        #     self.debugPrint('mergStep',v1)
         
-
     def computeDiff(self,u,v,m):
         """
             Estimate the peformance
@@ -345,7 +390,9 @@ class ATG(object):
             Obtain a pair of AC tasks
             which when stacked yields the
             greatest reduction in execution 
-            time. Stop when the stacking factor
+            time. 
+            
+            Must stop when the stacking factor
             is already 4.
         """
         A   = self.computeAC()
@@ -389,28 +436,41 @@ class ATG(object):
             for child in self.G.nodes[u]['children'] :
                 child[1][param] = rank
         if param == 'alloc':
+            allocTotal = val
             stk = int(self.G.nodes[u]['stack'])
-            allocAll = generateAllocForChildren(val,stk)
+            allocAll = generateAllocForChildren(allocTotal,stk)
+            # if (u == '16') :
+            #     print(f'u:{u},AllocAll:{allocAll},Stack:{stk}')
             if stk == 1 :
                 self.G.nodes[u][param] = allocAll[0]
             else :
+                self.G.nodes[u][param] = allocTotal # np.sum(allocAll)
                 allChildren = self.G.nodes[u]['children']
                 for i,child in enumerate(allChildren) :
                     child[1][param] = allocAll[i]
         if param == 'start':
             start = val
+            self.G.nodes[u][param] = start
             for child in self.G.nodes[u]['children'] :
                 child[1][param] = start
         if param == 'finish':
+            finish = val  # This is value is useless
+            stk = int(self.G.nodes[u]['stack'])
+            finishALL = []
             # Different member of the stack will have different finish times
             for child in self.G.nodes[u]['children'] :
                 alloc  = int(child[1]['alloc'])
                 start  = int(child[1]['start'])
                 aet    = float(child[1]['aet'])
                 bet    = float(child[1]['bet'])
-                finish = start + 1/(aet*alloc+bet)
-                child[1]['finish'] = finish
-   
+                finish2 = start + 1/(aet*alloc+bet)
+                child[1]['finish'] = finish2
+                finishALL.append(finish2)
+            if stk > 1 :
+                self.G.nodes[u][param] = np.max(finishALL)
+            else :
+                self.G.nodes[u][param] = finish
+                
     def getPace(self,u,M):
         """
             Get the minimum energy
@@ -418,7 +478,7 @@ class ATG(object):
             Used by the DnC algorithm
         """
         idx = np.argmin([self.getPower(u,m)*self.getExecutionTime(u,m) for m in range(1,M+1)])
-        return idx
+        return idx+1
 
     def getReadyNodes(self,T,U) :
         """
@@ -426,14 +486,6 @@ class ATG(object):
             T, all of whose predecessors
             lie in U
         """
-        # nbdT = (ft.reduce(lambda u,v : u|v,[set(self.G.predecessors(t)) | set([t]) for t in T]) & set(T)) - U
-        # return nbdT
-        # readyT = set()
-        # for t in T :
-        #     pred = set(self.G.predecessors(t))
-        #     if pred <= U :
-        #         readyT.add(t)
-        # return readyT
         return self.getReadyNodes2(T,U)
 
     def getReadyNodes2(self,T,U) :
@@ -470,168 +522,93 @@ class ATG(object):
         """
             Compute the total
             execution and
-            peak power
+            peak power for a schedule
         """
-        et  = 0.0
-        pkp = 0.0
-        startL = []
-        finishL = []
-        pkpL= []
-        for u in self.G.nodes(data=True):
-            m = u[1]['alloc']
-            startL.append(u[1]['start'])
-            finishL.append(u[1]['finish'])
-            pkpL.append(self.getPower(u[0],m))
+        IS = self.verifyDAGConstraints()
+        maxpkp,maxM,et=computeMaxPkp(IS,self)
+        return maxpkp,et,maxM
 
-        et = np.max(finishL) - np.min(startL)
-        pkp = np.max(pkpL)
-        return (pkp,et)
-
-def cvxallocTest():
-    """
-        Perform an allocation
-        for the topologically
-        sorted set of nodes in T
-    """
-    N  = 4
-    D  = 2
-    a1 = [0.9306707270772263, 0.781253569721745, 1.96668139375962, 1.7920940392776321]
-    b1 = [1.3267719165086922, 0.765264919613304, 1.3159522447618568, 0.5911815286630802]
-    a2 = [1.5736020733308043, 0.5113181889897235, 0.30285882145827975, 0.4394272763462338]
-    b2 = [0.43724930121492356, 1.4835425054235123, 1.1986166932894586, 0.862884848808483]
-
-    lb  = [1 for _ in range(N)] + [0.0]
-    ub  = [MAXCPU for _ in range(N)]+[float('inf')]
-
-    opt = tcvx.CPPCVXOptimizer()
-    x   = [1 for _ in range(N)]+[0.0]
-    opt.setParams(N,x,a1,b1,a2,b2,1,MAXCPU)
-    opt.optimize(D)
-    xopt = opt.getOpt()
-    print(xopt[:-1])
-
-def cvxalloc(atg,D):
-    """
-        Compute the allocations of
-        nodes of atg, which is (topologically)
-        sorted as in T.
-    """
-    T   = atg.topoSort()
-    aet = []
-    bet = []
-    ap  = []
-    bp  = []
-    llim = []
-    N   = len(T)         # Number of phases, also must match the length of the arrays declared before
-    for r,t in enumerate(T):
-        a1,b1,a2,b2,llim1 = atg.getNodeParams(t)
-        aet.append(a1)
-        bet.append(b1)
-        ap.append(a2)
-        bp.append(b2)
-        llim.append(llim1)
-        # atg.setParamVal(t,'rank',r)
-    
-    opt = tcvx.CPPCVXOptimizer()
-    x   = [1 for _ in range(N)] + [0.0]
-    opt.setParams(N,x,aet,bet,ap,bp,llim,MAXCPU)
-    opt.optimize(D)
-    xopt = opt.getOpt()
-
-    # Discretize and allocate
-    start  = 0.0
-    finish = 0.0
-    maxpkp = 0.0
-    xopt2  = []
-    for r,t in enumerate(T) :
-        atg.setParamVal(t,'rank',r)
-
-        # Allocation for myself. Allocation for my children is done within setParamVal
-        allocAllStack = math.ceil(xopt[r])
-        atg.setParamVal(t,'alloc',allocAllStack)
-
-        finish = start + atg.getExecutionTime(t,allocAllStack)
-        atg.setParamVal(t,'start',start)
-        atg.setParamVal(t,'finish',finish)
-        start = finish
-        maxpkp = np.max([maxpkp,atg.getPower(t,allocAllStack)])
-        xopt2.append(allocAllStack)
-    
-    return maxpkp,finish
-
-def initalloc(atg,D):
-    """
-        Start with an initial allocation
-        All nodes serialized and allocated 
-        the maximum cores
-    """
-    T     = atg.topoSort()
-    start  = 0.0
-    maxpkp = 0.0
-    finish = 0.0
-    for r,t in enumerate(T):
-        alloc = MAXCPU
-        atg.setParamVal(t,'rank',r)
-        atg.setParamVal(t,'alloc',alloc)
-        finish = start + atg.getExecutionTime(t,alloc)
-        atg.setParamVal(t,'start',start)
-        atg.setParamVal(t,'finish',finish)
-        maxpkp = np.max([maxpkp,atg.getPower(t,alloc)])
-        start = finish
-    return maxpkp,finish
-
-def PkMin(fl2,D,debugPrint=False):
-    # oldpkp = 0.0
-    pkp    = 0.0 
-    atg = ATG(fl2)
-    tol = 1e-8
-    s1  = time.time()
-    i = 0
-    pkp,finish = initalloc(atg,D)
-    completelySerialized = False
-    
-    while(not completelySerialized):
-        if i == 0 :
-            oldatg     = copy.deepcopy(atg)
-            oldpkp     = pkp
-            oldfin     = finish
-        else :
-            pkp1,finish1 = atg.getTotalEtPower()
-            if pkp1 < oldpkp and finish1 <= D: # Save the best encountered allocation
-                oldatg     = copy.deepcopy(atg)
-                oldpkp     = pkp
-                oldfin     = finish
+    def verifyDAGConstraints(self):
+        IS = [(u[0],u[1]['alloc'],u[1]['start'],u[1]['finish']) for u in self.G.nodes(data=True)]
         
-        if debugPrint :
-            pkp2,finish2 = atg.getTotalEtPower()
-            print(f'iter_Beg@{i}|Et:{finish2},Pkp:{pkp2},ATG:{atg}\n')
-
-        # CVX Opt Step
-        pkp_cvx,finish_cvx = cvxalloc(atg,D)
-        if (pkp_cvx < oldpkp) and (finish_cvx <= D) : # Save the best encountered allocation
-            oldatg  = copy.deepcopy(atg)
-            oldpkp  = pkp_cvx
-            oldfin  = finish_cvx
+        for (u,v) in self.G.edges() :
+            if self.G.nodes[u]['rank'] > self.G.nodes[v]['rank'] :
+                print(self)
+                raise ValueError(f'Dep not satisfied for {(u,v)}')
+        return IS
+    
+    def initalloc(self,D):
+        """
+            Start with an initial allocation
+            All nodes serialized and allocated 
+            the maximum cores
+        """
+        T     = self.topoSort()
+        start  = 0.0
+        maxpkp = 0.0
+        finish = 0.0
+        for r,t in enumerate(T):
+            alloc = MAXCPU
+            self.setParamVal(t,'rank',r)
+            self.setParamVal(t,'alloc',alloc)
+            finish = start + self.getExecutionTime(t,alloc)
+            self.setParamVal(t,'start',start)
+            self.setParamVal(t,'finish',finish)
+            maxpkp = np.max([maxpkp,self.getPower(t,alloc)])
+            start = finish
+        return (maxpkp,finish,-1)
+    
+    def cvxalloc(self,D):
+        """
+            Compute the allocations of
+            nodes of atg, which is (topologically)
+            sorted as in T.
+        """
+        T   = self.topoSort()
+        aet = []
+        bet = []
+        ap  = []
+        bp  = []
+        llim = []
+        N   = len(T)         # Number of phases, also must match the length of the arrays declared before
+        for r,t in enumerate(T):
+            a1,b1,a2,b2,llim1 = self.getNodeParams(t)
+            aet.append(a1)
+            bet.append(b1)
+            ap.append(a2)
+            bp.append(b2)
+            llim.append(llim1)
+            # self.setParamVal(t,'rank',r)
         
-        if debugPrint :
-            pkp2,finish2 = atg.getTotalEtPower()
-            print(f'iter_AftCVXOpt@{i}|Et:{finish2},Pkp:{pkp2},ATG:{atg}\n')
+        opt = tcvx.CPPCVXOptimizer()
+        x   = [1 for _ in range(N)] + [0.0]
+        opt.setParams(N,x,aet,bet,ap,bp,llim,MAXCPU)
+        opt.optimize(D)
+        xopt = opt.getOpt()
+    
+        # Discretize and allocate
+        start  = 0.0
+        finish = 0.0
+        maxpkp = 0.0
+        xopt2  = []
+        for r,t in enumerate(T) :
+            self.setParamVal(t,'rank',r)
+    
+            # Allocation for myself. Allocation for my children is done within setParamVal
+            allocAllStack = math.ceil(xopt[r])
+            self.setParamVal(t,'alloc',allocAllStack)
+    
+            finish = start + self.getExecutionTime(t,allocAllStack)
+            self.setParamVal(t,'start',start)
+            self.setParamVal(t,'finish',finish)
+            start = finish
+            maxpkp = np.max([maxpkp,self.getPower(t,allocAllStack)])
+            xopt2.append(allocAllStack)
+        
+        # self.debugPrint('cvxAlloc','19')
+        # self.debugPrint('cvxAlloc','16')
+        return (maxpkp,finish,-1)
 
-        # DAG merging
-        ac = atg.computeBestPair(MAXCPU)
-        if ac:
-            a,c = ac
-            atg.mergeNodes(a,c)
-        else :
-            completelySerialized = True
-        i += 1
-
-    s2  = time.time()
-    # Verfication
-    verpkp, verfinish = oldatg.getTotalEtPower()
-    # print(f'Best Configuration|Et:{verfinish},Pkp:{verpkp}')
-    return oldpkp,oldfin,(s2-s1),oldatg
 
 if __name__=="__main__":
     generateCombinedBench(4)
-
