@@ -333,8 +333,8 @@ def DnCLike(fl2,D):
         atg.setParamVal(u,'start',start)
         atg.setParamVal(u,'finish',finish)
     
-    verpkp,verfinish,maxM = atg.getTotalEtPower()
-    return (verpkp,verfinish,maxM,(s2-s1))
+    verpkp,verfinish,maxM,energy = atg.getTotalEtPower()
+    return (verpkp,verfinish,maxM,energy,(s2-s1))
 
 def main():
     N   = 100

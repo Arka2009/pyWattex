@@ -21,26 +21,27 @@ BENCH         = ['dfs','cilksort','fib','pi','queens']
 L             = 1/0.52
 MAXCPU        = 16
 
-def computeMaxPkp(IS,atg):
+def computeMaxPkp(IS2,atg):
     time   = 0.0
     power  = 0.0
     totalM = 0
+    IS = [(k,u['alloc'],u['start'],u['finish']) for k,u in IS2.items()]
     IS.sort(key=lambda u : u[2])
     finishevtQ = []
     allpower   = []
     allM       = []
     allEt      = []
-    for i,t in enumerate(IS):
+    allEnergy  = []
+    for sched in IS:
         # Add up power values
-        u,m,start,finish = t
+        u,m,start,finish = sched    
         power += atg.getPower(u,m)
         time  += start
         totalM += m
         heapq.heappush(finishevtQ,(finish,atg.getPower(u,m),m))
+        allEnergy.append((finish-start)*atg.getPower(u,m))
 
         # Deduct power values
-        # cummuPower = np.sum([atg.getPower(u1,m1) for u1,m1,s1,f1 in IS if f1 <= time])
-        # power -= cummuPower
         if len(finishevtQ) > 0:
             f2,p2,m2 = finishevtQ[0]
             if time >= f2 :
@@ -51,7 +52,7 @@ def computeMaxPkp(IS,atg):
         allM.append(totalM)
         allEt.append(finish)
         # print(f'iter({i}):{power}')
-    return np.max(allpower),np.max(allM),np.max(allEt)
+    return np.max(allpower),np.max(allM),np.max(allEt),np.sum(allEnergy)
 
 def combineBench(Nr):
     """
@@ -524,15 +525,31 @@ class ATG(object):
             execution and
             peak power for a schedule
         """
-        IS = self.verifyDAGConstraints()
-        maxpkp,maxM,et=computeMaxPkp(IS,self)
-        return maxpkp,et,maxM
+        IS = self.verifyPrecedenceConstraints()
+        maxpkp,maxM,et,energy=computeMaxPkp(IS,self)
+        return (maxpkp,et,maxM,energy)
 
-    def verifyDAGConstraints(self):
-        IS = [(u[0],u[1]['alloc'],u[1]['start'],u[1]['finish']) for u in self.G.nodes(data=True)]
-        
+    def verifyPrecedenceConstraints(self):
+        IS = dict()
+        for u in self.G.nodes(data=True) :
+            if int(u[1]['stack']) == 1 :
+                IS[u[0]] = {
+                    'rank' : u[1]['rank'],
+                    'alloc' : u[1]['alloc'],
+                    'start' : u[1]['start'],
+                    'finish' : u[1]['finish']
+                }
+            else :
+                for v in u[1]['children'] :
+                    IS[v[0]] = {
+                        'rank' : v[1]['rank'],
+                        'alloc' : v[1]['alloc'],
+                        'start' : v[1]['start'],
+                        'finish' : v[1]['finish']
+                    }
+        # pprint.pprint(IS)
         for (u,v) in self.G.edges() :
-            if self.G.nodes[u]['rank'] > self.G.nodes[v]['rank'] :
+            if IS[u]['rank'] > IS[v]['rank'] :
                 print(self)
                 raise ValueError(f'Dep not satisfied for {(u,v)}')
         return IS

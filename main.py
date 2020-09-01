@@ -46,11 +46,11 @@ def main():
         N = 100
         D   = 17*N
         Gfl = f'benchmarks/dag4/random{N}_{id}.dot'
-        p1,f1,allM1,r1 = dnc.DnCLike(Gfl,D)
+        p1,f1,allM1,e1,r1 = dnc.DnCLike(Gfl,D)
         # p1,f1,allM1,r1 = (1,1,1,1)
-        p2,f2,allM2,r2 = pkp.PkMin(Gfl,D)
-        print(f'{id},{p2/p1}',file=fl2)
-        # print(f'{id},{p2/p1},{f2/f1},{allM1},{allM2}')
+        p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D)
+        # print(f'{id},{p2/p1},{e2/e1}',file=fl2)
+        print(f'{id},{p2/p1},{e2/e1},{allM1},{allM2}')
         # pprint.pprint({
         #     'id' : id,
         #     'pkp_DnCLike':p1,
