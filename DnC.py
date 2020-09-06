@@ -64,6 +64,8 @@ def DnCDAGSchedule(T,M,atg):
             else :
                 print(f'Graham({time:.2f})|readyT:{readyT},readyM:{readyM},T:{T2},exT:{exT},m:{m},u:{u}')
                 raise ValueError(f'Nobody is executing')
+        if not (0 <= readyM <= M) :
+            print(f'{readyM} out of bounds at {time}')
     return IS
 
 
@@ -149,11 +151,14 @@ def ScheduleInd(T,M,D,atg):
     #     pprint.pprint(T)
     return oldT
 
-def ScheduleInd2(T,M,D,atg):
-    oldT = NDFH(T,M,D,atg)
+def ScheduleInd2(T,M,D,atg,id=('mid',0)):
+    oldT = NDFH(T,M,D,atg,id)
+    uBeg,uFinish = getStartFinish(oldT)
+    pkp,maxM,_,_ = ut.computeMaxPkp(oldT,atg)
+    print(f'Id@{id}|MidIndTasks,Size:{len(T)},Start:{uBeg},Finish:{uFinish},maxM:{maxM},pkp:{pkp},deadline:{D}')
     return oldT
 
-def NDFH(T,M,D,atg):
+def NDFH(T,M,D,atg,id):
     """
         Format of T is
         same as IS := <node-id,alloc,start,finish>
@@ -255,7 +260,7 @@ def offsetTask(T,time):
         newT.append(t)
     return newT
 
-def DnCRecursive(Tp,IS,M,D,atg,start,finish):
+def DnCRecursive(Tp,IS,M,D,atg,start,finish,depth=0,recurDir='mid'):
     """
         Recursive implementation.
         Format of Tp is same as IS
@@ -263,6 +268,10 @@ def DnCRecursive(Tp,IS,M,D,atg,start,finish):
     if len(Tp) == 0:
         return []
     
+    """
+        Partition the task-set into three sets.
+        The tasks in T_mid do not have any dependences.
+    """
     mid  = start + (finish - start)*0.5
     Tmid = []
     Tbef = []
@@ -275,6 +284,7 @@ def DnCRecursive(Tp,IS,M,D,atg,start,finish):
         elif mid <= t[2] <= t[3] <= finish :
             Taft.append(t)
 
+    print(f'Id@({recurDir},{depth})|SizeTp:{len(Tp)},SizeChild:<{len(Tbef)},{len(Tmid)},{len(Taft)}>,SizeIS:{len(IS)},start:{start},finish:{finish}')
     # print('----------------')
     # print(f'({invocid})[TPART-B]{Tbef}')
     # print(f'({invocid})[TPART-M]{Tmid}')
@@ -282,21 +292,21 @@ def DnCRecursive(Tp,IS,M,D,atg,start,finish):
     # print('----------------')
 
     if Tbef :
-        TbefSched = DnCDAGSchedule([t[0] for t in Tbef],M,atg)
-        bef1,end1 = getStartFinish(TbefSched)
-        Sbef      = DnCRecursive(TbefSched,IS,M,D/3,atg,0,end1)
+        # TbefSched = DnCDAGSchedule([t[0] for t in Tbef],M,atg)
+        # bef1,end1 = getStartFinish(TbefSched)
+        Sbef      = DnCRecursive(Tbef,IS,M,D/3,atg,start,mid,depth+1,'beg')
     else :
         Sbef      = []
 
     if Tmid :
-        Smid      = ScheduleInd2(Tmid,M,D/3,atg)
+        Smid      = ScheduleInd2(Tmid,M,D/3,atg,(recurDir,depth))
     else :
         Smid      = []
 
     if Taft :
-        TaftSched = DnCDAGSchedule([t[0] for t in Taft],M,atg)
-        bef2,end2 = getStartFinish(TaftSched)
-        Saft      = DnCRecursive(TaftSched,IS,M,D/3,atg,0,end2)
+        # TaftSched = DnCDAGSchedule([t[0] for t in Taft],M,atg)
+        # bef2,end2 = getStartFinish(TaftSched)
+        Saft      = DnCRecursive(Taft,IS,M,D/3,atg,mid,finish,depth+1,'aft')
     else :
         Saft = []
 
@@ -308,12 +318,14 @@ def DnCRecursive(Tp,IS,M,D,atg,start,finish):
     # print(f'({invocid})before_finish:{before_finish},mid_finish:{mid_finish}')
     Smid2 = offsetTask(Smid,before_finish)
     Saft2 = offsetTask(Saft,before_finish+mid_finish)
+    SU = Sbef+Smid2+Saft2
+    uBeg,uFinish = getStartFinish(SU)
     # print(f'({invocid}){Sbef}')
     # print(f'({invocid}){Smid2}')
     # print(f'({invocid}){Saft2}')
     # print('----------------')
-    
-    return (Sbef+Smid2+Saft2)
+    print(f'Id@({recurDir},{depth})|Exited,Start:{uBeg},Finish:{uFinish}')
+    return SU
 
 def DnC(atg,M,D):
     IS       = DnCDAGSchedule(atg.getAllNodes(),M,atg)
@@ -332,7 +344,7 @@ def DnCLike(fl2,D):
         atg.setParamVal(u,'alloc',m)
         atg.setParamVal(u,'start',start)
         atg.setParamVal(u,'finish',finish)
-    
+    atg.setScheduled(True)
     verpkp,verfinish,maxM,energy = atg.getTotalEtPower()
     return (verpkp,verfinish,maxM,energy,(s2-s1))
 

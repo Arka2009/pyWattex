@@ -76,5 +76,6 @@ def PkMin(fl2,D,debugPrint=False):
         i += 1
 
     s2  = time.time()
+    bestAtg.setScheduled(True)
     verpkp,verfinish,maxM,energy = bestAtg.getTotalEtPower()
     return (verpkp,verfinish,maxM,energy,(s2-s1))

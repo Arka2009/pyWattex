@@ -21,11 +21,18 @@ BENCH         = ['dfs','cilksort','fib','pi','queens']
 L             = 1/0.52
 MAXCPU        = 16
 
-def computeMaxPkp(IS2,atg):
+def computeMaxPkp(IS,atg):
+    """
+        Compute the following 
+        from the taskset in IS
+        1. Finish Time (Start is assumed to be 0.0)
+        2. Peak power
+        3. Maximum processors used
+        4. Total energy consumed
+    """
     time   = 0.0
     power  = 0.0
     totalM = 0
-    IS = [(k,u['alloc'],u['start'],u['finish']) for k,u in IS2.items()]
     IS.sort(key=lambda u : u[2])
     finishevtQ = []
     allpower   = []
@@ -52,6 +59,17 @@ def computeMaxPkp(IS2,atg):
         allM.append(totalM)
         allEt.append(finish)
         # print(f'iter({i}):{power}')
+    if np.max(allM) > MAXCPU :
+        # for u in self.G.nodes(data=True) :
+        idx = np.argmax(allM)
+        print(f'idx:{idx}')
+        for i in range(idx-2,idx+2):
+            if 0 <= i < len(IS) :
+                u,_,_,_ = IS[i]
+                pprint.pprint(atg.G.nodes[u])
+        
+
+
     return np.max(allpower),np.max(allM),np.max(allEt),np.sum(allEnergy)
 
 def combineBench(Nr):
@@ -167,8 +185,13 @@ class ATG(object):
             n[1].update(rank=-1)
             n[1].update(start=-1)
             n[1].update(finish=-1)
-        
-        self.valid    = True
+            n[1].update(stack=1)
+            n[1].update(alloc=-1)
+        self.valid = True
+        self.isScheduled = False
+    
+    def setScheduled(self,tv):
+        self.isScheduled = True
     
     def __str__(self):
         U = list(self.G.nodes(data=True))
@@ -525,13 +548,33 @@ class ATG(object):
             execution and
             peak power for a schedule
         """
-        IS = self.verifyPrecedenceConstraints()
+        IS2 = self.checkAllocationCorrectness()
+        IS = [(k,u['alloc'],u['start'],u['finish']) for k,u in IS2.items()]
         maxpkp,maxM,et,energy=computeMaxPkp(IS,self)
         return (maxpkp,et,maxM,energy)
 
-    def verifyPrecedenceConstraints(self):
+    def checkAllocationCorrectness(self):
+        """
+            Verify if the precedence and allocation
+            constraints are satisfied. Does not
+            check for the violation of resource 
+            constraints.
+        """
         IS = dict()
         for u in self.G.nodes(data=True) :
+            if self.setScheduled :
+                """
+                    Ensure that a scheduled
+                    ATG has all its parameters
+                    set correctly
+                """
+                allParamSet = (u[1]['rank'] >= 0) and \
+                              (u[1]['stack'] > 0) and \
+                              (u[1]['alloc'] > 0) and \
+                              (u[1]['start'] >= 0) and \
+                              (u[1]['finish'] >= u[1]['start'])
+                if not allParamSet :
+                    raise ValueError(f'Parameters for {pprint.pformat(u)} not correctly set')
             if int(u[1]['stack']) == 1 :
                 IS[u[0]] = {
                     'rank' : u[1]['rank'],
@@ -547,9 +590,9 @@ class ATG(object):
                         'start' : v[1]['start'],
                         'finish' : v[1]['finish']
                     }
-        # pprint.pprint(IS)
+        # Verify precedence constraints
         for (u,v) in self.G.edges() :
-            if IS[u]['rank'] > IS[v]['rank'] :
+            if IS[u]['finish'] > IS[v]['start'] :
                 print(self)
                 raise ValueError(f'Dep not satisfied for {(u,v)}')
         return IS

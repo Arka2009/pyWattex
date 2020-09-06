@@ -42,7 +42,7 @@ def main():
     # print(f'Completed numTasks experiments')
     # flT.close()
 
-    for id in range(1,101): # 101
+    for id in [68]: # 101
         N = 100
         D   = 17*N
         Gfl = f'benchmarks/dag4/random{N}_{id}.dot'
