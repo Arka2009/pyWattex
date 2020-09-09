@@ -59,14 +59,22 @@ def computeMaxPkp(IS,atg):
         allM.append(totalM)
         allEt.append(finish)
         # print(f'iter({i}):{power}')
-    if np.max(allM) > MAXCPU :
-        # for u in self.G.nodes(data=True) :
-        idx = np.argmax(allM)
-        print(f'idx:{idx}')
-        for i in range(idx-2,idx+2):
-            if 0 <= i < len(IS) :
-                u,_,_,_ = IS[i]
-                pprint.pprint(atg.G.nodes[u])
+    # if np.max(allM) > MAXCPU :
+    # for u in self.G.nodes(data=True) :
+    idxList = [u for u,v in enumerate(list(allM)) if v > 0]
+    # print(f'ExceededList|{pprint.pformat(idxList)}')
+    if len(IS) >= 100 :
+        print(f'========STARTED=========')
+        for j in idxList :
+            u1,alloc1,start1,finish1 = IS[j]
+            print(f'TimeStep@{j},currentTaskId:{u1},currentTaskDuration:({start1:.2f},{finish1:.2f}),currentAlloc:{alloc1},TotalCoresUsed:{allM[j]}/{MAXCPU}')
+            for i in range(j-2,j+2):
+                if 0 <= i < len(IS) and (i != j):
+                    u,alloc,start,finish = IS[i]
+                    print(f'TimeStep@{i},nbdTaskId:{u},nbdTaskDuration:({start:.2f},{finish:.2f}),nbdAlloc:{alloc},TotalCoresUsed:{allM[i]}/{MAXCPU}')
+                    # print(f'nbdTaskId:{u}\t{alloc}\t{start:.2f}\t{finish:.2f}')
+            print(f'===========================================')
+        print(f'========FINISHED=========\n\n')
         
 
 
@@ -241,6 +249,7 @@ class ATG(object):
             aet = float(self.G.nodes[u]['aet'])
             bet = float(self.G.nodes[u]['bet'])
             m2 = allocAll[0]
+            # return int(np.ceil(1/(aet*m2+bet)))
             return 1/(aet*m2+bet)
         else :
             et = []
@@ -250,6 +259,7 @@ class ATG(object):
                 bet = float(child[1]['bet'])
                 m2  = allocAll[i]
                 et.append(1/(aet*m2+bet))
+            # return int(np.ceil(np.max(et)))
             return np.max(et)
 
     def getPower(self,u,m):
