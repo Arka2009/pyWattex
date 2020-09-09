@@ -186,6 +186,8 @@ class ATG(object):
         self.G  = nxdr.read_dot(dotFile) # Read a dot file, it is assumed nodes are numbered as str(integers)
         if not nx.is_directed_acyclic_graph(self.G):
             raise IOError(f'The graph is not acyclic')
+        self.origG = nxdag.transitive_closure_dag(copy.deepcopy(self.G)) # This is to verify whether precedence constraints are satisified or not
+        self.originalSavedAlready = False
 
         N = self.G.nodes(data=True)
         for n in N:
@@ -364,7 +366,10 @@ class ATG(object):
             H.nodes[v1]['children'] = chld1 + chld2
             H.nodes[v1]['stack'] = stackv1 + stackv2
         
-        # Reset the graph
+        # Reset the graph, save the original graph
+        if not self.originalSavedAlready :
+            self.origG = nxdag.transitive_closure_dag(copy.deepcopy(self.G))
+            self.originalSavedAlready = True
         self.G = H
         # if v1 == '16' or v1 == '19' or v1 == '17':
         #     self.debugPrint('mergStep',v1)
@@ -601,7 +606,7 @@ class ATG(object):
                         'finish' : v[1]['finish']
                     }
         # Verify precedence constraints
-        for (u,v) in self.G.edges() :
+        for (u,v) in self.origG.edges() :
             if IS[u]['finish'] > IS[v]['start'] :
                 print(self)
                 raise ValueError(f'Dep not satisfied for {(u,v)}')
