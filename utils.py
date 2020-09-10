@@ -21,6 +21,72 @@ BENCH         = ['dfs','cilksort','fib','pi','queens']
 L             = 1/0.52
 MAXCPU        = 16
 
+class schedEventObject(object):
+    def __init__(self,schedTuple,startOrFinish):
+        """
+            finish = 0
+            start  = 1
+        """
+        u,m,start,finish = schedTuple
+        if startOrFinish == 0:
+            self.currentTime = np.ceil(finish*100)/100 
+        else :
+            self.currentTime = np.ceil(start*100)/100
+
+        self.startOrFinish = startOrFinish
+        self.alloc = m
+        self.taskId = u
+
+    def __str__(self):
+        if self.startOrFinish == 0:
+            stString = 'finish'
+        else :
+            stString = 'start'
+        st = f'{self.currentTime}@{stString}|alloc:{self.alloc},taskId:{self.taskId}'
+        return st
+
+    def getTaskAttr(self):
+        return (self.currentTime,self.startOrFinish,self.alloc,self.taskId)
+
+    def getCurrentTime(self):
+        return self.currentTime
+    
+    def isFinish(self) :
+        return (self.startOrFinish == 0)
+
+    def __lt__(self,other):
+        if self.currentTime == other.currentTime :
+            return self.startOrFinish < other.startOrFinish
+        return (self.currentTime < other.currentTime)
+    
+    def __le__(self,other):
+        if self.currentTime == other.currentTime :
+            return self.startOrFinish <= other.startOrFinish
+        return (self.currentTime <= other.currentTime)
+    
+    def __eq__(self,other):
+        return (self.currentTime == other.currentTime) and (self.currentTime == other.currentTime)
+    
+    def __ne__(self,other) :
+        return not (self.__eq__(other))
+    
+    def __gt__(self,other) :
+        if self.currentTime == other.currentTime :
+            return self.startOrFinish > other.startOrFinish
+        return (self.currentTime > other.currentTime)
+
+    def __ge_(self,other):
+        if self.currentTime == other.currentTime :
+            return self.startOrFinish >= other.startOrFinish
+        return (self.currentTime >= other.currentTime)
+
+def generateSchedObjectsFromIS(IS):
+    objList = []
+    for schedTuple in IS :
+        objList.append(schedEventObject(schedTuple,0))
+        objList.append(schedEventObject(schedTuple,1))
+    return objList
+
 def computeMaxPkp(IS,atg):
     """
         Compute the following 
@@ -30,55 +96,67 @@ def computeMaxPkp(IS,atg):
         3. Maximum processors used
         4. Total energy consumed
     """
-    time   = 0.0
-    power  = 0.0
-    totalM = 0
     IS.sort(key=lambda u : u[2])
-    finishevtQ = []
-    allpower   = []
+    allPower   = []
     allM       = []
-    allEt      = []
+    allFinish  = []
+    allStart   = []
     allEnergy  = []
+    
+    
+    # Compute the energy and finish time directly from IS
     for sched in IS:
-        # Add up power values
         u,m,start,finish = sched    
-        power += atg.getPower(u,m)
-        time  += start
-        totalM += m
-        heapq.heappush(finishevtQ,(finish,atg.getPower(u,m),m))
         allEnergy.append((finish-start)*atg.getPower(u,m))
+        allFinish.append(finish)
+        allStart.append(start)
 
-        # Deduct power values
-        if len(finishevtQ) > 0:
-            f2,p2,m2 = finishevtQ[0]
-            if time >= f2 :
-                power -= p2
-                totalM -= m2
-                heapq.heappop(finishevtQ)
-        allpower.append(power)
+    # Compute the peak power and total cores
+    schedObjectList = generateSchedObjectsFromIS(IS)
+    allTimes = sorted(list(set([s.getCurrentTime() for s in schedObjectList])))
+    heapq.heapify(schedObjectList)
+    errTol = lambda x1,x2 : np.abs(x2-x1) < 0.5*(1e-3)
+    totalPower  = 0.0
+    totalM = 0
+    for t in allTimes :
+        while len(schedObjectList) > 0 :
+            if (errTol(schedObjectList[0].getCurrentTime(),t)) and (t >= schedObjectList[0].getCurrentTime()):
+                sched = heapq.heappop(schedObjectList)
+                t2,startOrFinish,currentM,taskId = sched.getTaskAttr()
+                currentPower = atg.getPower(taskId,currentM)
+                if sched.isFinish() :
+                    totalPower -= currentPower
+                    totalM -= currentM
+                else :
+                    totalPower += currentPower
+                    totalM += currentM
+            else :
+                break
+        allPower.append(totalPower)
         allM.append(totalM)
-        allEt.append(finish)
-        # print(f'iter({i}):{power}')
-    # if np.max(allM) > MAXCPU :
-    # for u in self.G.nodes(data=True) :
-    idxList = [u for u,v in enumerate(list(allM)) if v > 0]
-    # print(f'ExceededList|{pprint.pformat(idxList)}')
-    if len(IS) >= 100 :
+
+    if len(IS) >= 100 : # Debugging
+        powerTS = dict(zip(allTimes,allPower))
+        mTS = dict(zip(allTimes,allM))
         print(f'========STARTED=========')
-        for j in idxList :
+        for j in range(len(IS)) :
             u1,alloc1,start1,finish1 = IS[j]
-            print(f'TimeStep@{j},currentTaskId:{u1},currentTaskDuration:({start1:.2f},{finish1:.2f}),currentAlloc:{alloc1},TotalCoresUsed:{allM[j]}/{MAXCPU}')
+            start1 = np.ceil(start1*100)/100
+            finish1 = np.ceil(finish1*100)/100
+            print(f'TimeStep@{j},currentTaskId:{u1},currentTaskDuration:({start1:.2f},{finish1:.2f}),currentAlloc:{alloc1},TotalCoresUsed:{mTS[start1]}/{MAXCPU}')
             for i in range(j-2,j+2):
                 if 0 <= i < len(IS) and (i != j):
                     u,alloc,start,finish = IS[i]
-                    print(f'TimeStep@{i},nbdTaskId:{u},nbdTaskDuration:({start:.2f},{finish:.2f}),nbdAlloc:{alloc},TotalCoresUsed:{allM[i]}/{MAXCPU}')
+                    start = np.ceil(start*100)/100
+                    finish = np.ceil(finish*100)/100
+                    print(f'TimeStep@{i},nbdTaskId:{u},nbdTaskDuration:({start:.2f},{finish:.2f}),nbdAlloc:{alloc},TotalCoresUsed:{mTS[start]}/{MAXCPU}')
                     # print(f'nbdTaskId:{u}\t{alloc}\t{start:.2f}\t{finish:.2f}')
             print(f'===========================================')
         print(f'========FINISHED=========\n\n')
         
 
 
-    return np.max(allpower),np.max(allM),np.max(allEt),np.sum(allEnergy)
+    return np.max(allPower),np.max(allM),np.max(allFinish)-np.min(allStart),np.sum(allEnergy)
 
 def combineBench(Nr):
     """
