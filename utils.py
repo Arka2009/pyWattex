@@ -334,17 +334,21 @@ class ATG(object):
             time all of them
         """
         u   = str(u)
-        stk = int(self.G.nodes[u]['stack'])
+        if u in self.G :
+            nodeAttr=self.G.nodes[u]
+        else :
+            nodeAttr=self.origG.nodes[u]
+        stk = int(nodeAttr['stack'])
         allocAll = generateAllocForChildren(m,stk)
         if stk == 1 :
-            aet = float(self.G.nodes[u]['aet'])
-            bet = float(self.G.nodes[u]['bet'])
+            aet = float(nodeAttr['aet'])
+            bet = float(nodeAttr['bet'])
             m2 = allocAll[0]
             # return int(np.ceil(1/(aet*m2+bet)))
             return 1/(aet*m2+bet)
         else :
             et = []
-            allChildren = self.G.nodes[u]['children']
+            allChildren = nodeAttr['children']
             for i,child in enumerate(allChildren):
                 aet = float(child[1]['aet'])
                 bet = float(child[1]['bet'])
