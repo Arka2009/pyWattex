@@ -27,14 +27,15 @@ def main():
     print(f'NumTasks,NormalizedPerf,NormalizedPerfEnergy,DnCRuntime,PkMinRuntime',file=flRunTimeAndVariableTaskGraphSize)
 
     # # Variable task graph experiments - Increasing task graph sizes
-    # for N in range(4,101):
-    #     D   = (17)*N
-    #     Gfl = f'benchmarks/dag3/random{N}_0.dot'
-    #     print(f'Processing {Gfl}')
-    #     p1,f1,allM1,e1,r1 = dnc.DnCLike(Gfl,D)
-    #     p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D)
-    #     print(f'{N},{p2/p1},{e2/e1},{r1},{r2}',file=flRunTimeAndVariableTaskGraphSize)
-    # print(f'Completed Vraible TG Variable Size experiments')
+    for N in range(4,101):
+        D   = (17)*N
+        Gfl = f'benchmarks/dag3/random{N}_0.dot'
+        print(f'Processing {Gfl}')
+        p1,f1,allM1,e1,r1 = dnc.DnCLike(Gfl,D)
+        p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D)
+        print(f'{N},{p2/p1},{e2/e1},{r1},{r2}',file=flRunTimeAndVariableTaskGraphSize)
+        print(f'{N},{p2/p1},{e2/e1},{r1},{r2}')
+    print(f'Completed Vraible TG Variable Size experiments')
 
 
     # # Variable task graph experiments - Constant task graph sizes
@@ -51,15 +52,15 @@ def main():
     # print(f'Completed numRandom experiments')
     
     # Variable (monotonically increasing) deadline experiments
-    for fac in range(17,118): # 118
-        N = 100
-        D = fac*N
-        Gfl = f'benchmarks/dag3/random{N}_0.dot'
-        p1,f1,allM1,e1,r1 = dnc.DnCLike(Gfl,D)
-        p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D)
-        print(f'{D},{p2/p1},{e2/e1}',file=flVariableDeadline)
-        print(f'{D},{p2/p1:.2f},{e2/e1:.2f},{allM1},{allM2},{f1/D:.2f},{f2/D:.2f}')
-    print(f'Completed numDeadlines experiments')
+    # for fac in range(17,118): # 118
+    #     N = 100
+    #     D = fac*N
+    #     Gfl = f'benchmarks/dag3/random{N}_0.dot'
+    #     p1,f1,allM1,e1,r1 = dnc.DnCLike(Gfl,D)
+    #     p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D)
+    #     print(f'{D},{p2/p1},{e2/e1}',file=flVariableDeadline)
+    #     print(f'{D},{p2/p1:.2f},{e2/e1:.2f},{allM1},{allM2},{f1/D:.2f},{f2/D:.2f}')
+    # print(f'Completed numDeadlines experiments')
 
     flRandomTGConstantTaskGraphSize.close()
     flVariableDeadline.close()
