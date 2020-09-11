@@ -72,7 +72,7 @@ def ScheduleInd2(T,M,D,atg,id=('mid',0)):
     oldT = NDFH(T,M,D,atg,id)
     uBeg,uFinish = getStartFinish(oldT)
     pkp,maxM,_,_ = ut.computeMaxPkp(oldT,atg)
-    print(f'Id@{id}|MidIndTasks,Size:{len(T)},Start:{uBeg},Finish:{uFinish},maxM:{maxM},pkp:{pkp},deadline:{D}')
+    # print(f'Id@{id}|MidIndTasks,Size:{len(T)},Start:{uBeg},Finish:{uFinish},maxM:{maxM},pkp:{pkp},deadline:{D}')
     return oldT
 
 def NDFH(T,M,D,atg,id):
@@ -159,7 +159,7 @@ def DnCRecursive(Tp,IS,M,D,atg,start,finish,depth=0,recurDir='mid'):
         elif mid <= t[2] <= t[3] <= finish :
             Taft.append(t)
 
-    print(f'Id@({recurDir},{depth})|SizeTp:{len(Tp)},SizeChild:<{len(Tbef)},{len(Tmid)},{len(Taft)}>,SizeIS:{len(IS)},start:{start},finish:{finish}')
+    # print(f'Id@({recurDir},{depth})|SizeTp:{len(Tp)},SizeChild:<{len(Tbef)},{len(Tmid)},{len(Taft)}>,SizeIS:{len(IS)},start:{start},finish:{finish}')
     # print('----------------')
     # print(f'({invocid})[TPART-B]{Tbef}')
     # print(f'({invocid})[TPART-M]{Tmid}')
@@ -199,7 +199,7 @@ def DnCRecursive(Tp,IS,M,D,atg,start,finish,depth=0,recurDir='mid'):
     # print(f'({invocid}){Smid2}')
     # print(f'({invocid}){Saft2}')
     # print('----------------')
-    print(f'Id@({recurDir},{depth})|Exited,Start:{uBeg},Finish:{uFinish}')
+    # print(f'Id@({recurDir},{depth})|Exited,Start:{uBeg},Finish:{uFinish}')
     return SU
 
 def DnC(atg,M,D):

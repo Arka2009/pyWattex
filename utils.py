@@ -87,7 +87,7 @@ def generateSchedObjectsFromIS(IS):
         objList.append(schedEventObject(schedTuple,1))
     return objList
 
-def computeMaxPkp(IS,atg):
+def computeMaxPkp(IS,atg,debugPrint=False):
     """
         Compute the following 
         from the taskset in IS
@@ -134,27 +134,37 @@ def computeMaxPkp(IS,atg):
                 break
         allPower.append(totalPower)
         allM.append(totalM)
+    
+    if debugPrint :
+        if len(IS) >= 100 : # Debugging
+            powerTS = dict(zip(allTimes,allPower))
+            mTS = dict(zip(allTimes,allM))
+            print(f'========STARTED=========')
+            for j in range(len(IS)) :
+                u1,alloc1,start1,finish1 = IS[j]
+                start1 = np.ceil(start1*100)/100
+                finish1 = np.ceil(finish1*100)/100
+                print(f'TimeStep@{j},currentTaskId:{u1},currentTaskDuration:({start1:.2f},{finish1:.2f}),currentAlloc:{alloc1},TotalCoresUsed:{mTS[start1]}/{MAXCPU}')
+                for i in range(j-2,j+2):
+                    if 0 <= i < len(IS) and (i != j):
+                        u,alloc,start,finish = IS[i]
+                        start = np.ceil(start*100)/100
+                        finish = np.ceil(finish*100)/100
+                        print(f'TimeStep@{i},nbdTaskId:{u},nbdTaskDuration:({start:.2f},{finish:.2f}),nbdAlloc:{alloc},TotalCoresUsed:{mTS[start]}/{MAXCPU}')
+                        # print(f'nbdTaskId:{u}\t{alloc}\t{start:.2f}\t{finish:.2f}')
+                print(f'===========================================')
+            print(f'========FINISHED=========\n\n')
+    else :
+        if len(IS) >= 100 :
+            powerTS = dict(zip(allTimes,allPower))
+            mTS = dict(zip(allTimes,allM))
 
-    if len(IS) >= 100 : # Debugging
-        powerTS = dict(zip(allTimes,allPower))
-        mTS = dict(zip(allTimes,allM))
-        print(f'========STARTED=========')
-        for j in range(len(IS)) :
-            u1,alloc1,start1,finish1 = IS[j]
-            start1 = np.ceil(start1*100)/100
-            finish1 = np.ceil(finish1*100)/100
-            print(f'TimeStep@{j},currentTaskId:{u1},currentTaskDuration:({start1:.2f},{finish1:.2f}),currentAlloc:{alloc1},TotalCoresUsed:{mTS[start1]}/{MAXCPU}')
-            for i in range(j-2,j+2):
-                if 0 <= i < len(IS) and (i != j):
-                    u,alloc,start,finish = IS[i]
-                    start = np.ceil(start*100)/100
-                    finish = np.ceil(finish*100)/100
-                    print(f'TimeStep@{i},nbdTaskId:{u},nbdTaskDuration:({start:.2f},{finish:.2f}),nbdAlloc:{alloc},TotalCoresUsed:{mTS[start]}/{MAXCPU}')
-                    # print(f'nbdTaskId:{u}\t{alloc}\t{start:.2f}\t{finish:.2f}')
-            print(f'===========================================')
-        print(f'========FINISHED=========\n\n')
-        
-
+            dfX = pd.DataFrame([{
+                'time' : t,
+                'power' : powerTS[t],
+                'numCores' : mTS[t]
+            } for t in allTimes])
+            dfX.to_csv(f'ExectionTrace.csv',index=False)
 
     return np.max(allPower),np.max(allM),np.max(allFinish)-np.min(allStart),np.sum(allEnergy)
 
@@ -264,9 +274,8 @@ class ATG(object):
         self.G  = nxdr.read_dot(dotFile) # Read a dot file, it is assumed nodes are numbered as str(integers)
         if not nx.is_directed_acyclic_graph(self.G):
             raise IOError(f'The graph is not acyclic')
-        self.origG = nxdag.transitive_closure_dag(copy.deepcopy(self.G)) # This is to verify whether precedence constraints are satisified or not
-        self.originalSavedAlready = False
-
+        
+        # self.originalSavedAlready = False
         N = self.G.nodes(data=True)
         for n in N:
             n[1].update(children=[])
@@ -275,6 +284,8 @@ class ATG(object):
             n[1].update(finish=-1)
             n[1].update(stack=1)
             n[1].update(alloc=-1)
+        
+        self.origG = nxdag.transitive_closure_dag(copy.deepcopy(self.G)) # This stores the original ATG, augments the DAG with its transitive closure.
         self.valid = True
         self.isScheduled = False
     
@@ -349,16 +360,20 @@ class ATG(object):
             with allocation-m
         """
         u   = str(u)
-        stk = int(self.G.nodes[u]['stack'])
+        if u in self.G :
+            nodeAttr=self.G.nodes[u]
+        else :
+            nodeAttr=self.origG.nodes[u]
+        stk = int(nodeAttr['stack'])
         allocAll = generateAllocForChildren(m,stk)
         if stk == 1 :
-            ap = float(self.G.nodes[str(u)]['ap'])
-            bp = float(self.G.nodes[str(u)]['bp'])
+            ap = float(nodeAttr['ap'])
+            bp = float(nodeAttr['bp'])
             m2 = allocAll[0]
             return ap*m2 + bp
         else :
             pkp = []
-            allChildren = self.G.nodes[u]['children']
+            allChildren = nodeAttr['children']
             for i,child in enumerate(allChildren):
                 ap = float(child[1]['ap'])
                 bp = float(child[1]['bp'])
@@ -445,9 +460,9 @@ class ATG(object):
             H.nodes[v1]['stack'] = stackv1 + stackv2
         
         # Reset the graph, save the original graph
-        if not self.originalSavedAlready :
-            self.origG = nxdag.transitive_closure_dag(copy.deepcopy(self.G))
-            self.originalSavedAlready = True
+        # if not self.originalSavedAlready :
+        #     self.origG = nxdag.transitive_closure_dag(copy.deepcopy(self.G))
+        #     self.originalSavedAlready = True
         self.G = H
         # if v1 == '16' or v1 == '19' or v1 == '17':
         #     self.debugPrint('mergStep',v1)
