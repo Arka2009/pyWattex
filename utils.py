@@ -384,6 +384,21 @@ class ATG(object):
                 m2 = allocAll[i]
                 pkp.append(ap*m2 + bp)
             return np.sum(pkp)
+        
+    def getPowerEstimate(self,u,m):
+        """
+            Compute the peak 
+            power a node u
+            with allocation-m
+        """
+        u   = str(u)
+        if u in self.G :
+            nodeAttr=self.G.nodes[u]
+        else :
+            nodeAttr=self.origG.nodes[u]
+        ap = float(nodeAttr['ap'])
+        bp = float(nodeAttr['bp'])
+        return ap*m + bp
 
     def debugPrint(self,prefixStr,u):
         """
@@ -730,7 +745,7 @@ class ATG(object):
             start = finish
         return (maxpkp,finish,-1)
     
-    def cvxalloc(self,D):
+    def cvxalloc(self,D,optimized=False):
         """
             Compute the allocations of
             nodes of atg, which is (topologically)
@@ -774,7 +789,10 @@ class ATG(object):
             self.setParamVal(t,'start',start)
             self.setParamVal(t,'finish',finish)
             start = finish
-            maxpkp = np.max([maxpkp,self.getPower(t,allocAllStack)])
+            if optimized :
+                maxpkp = np.max([maxpkp,self.getPowerEstimate(t,allocAllStack)])
+            else :
+                maxpkp = np.max([maxpkp,self.getPower(t,allocAllStack)])
             xopt2.append(allocAllStack)
         
         # self.debugPrint('cvxAlloc','19')

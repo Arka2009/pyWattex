@@ -18,6 +18,7 @@ def motivationalExperiment():
     p2,f2,r2,oldGfl = pkp.PkMin(Gfl,D,True)
 
 def main():
+    optimized=False
     os.system(f'mkdir -p Results')
     flRandomTGConstantTaskGraphSize = open(f'Results/randomTGWithConstantSize.csv','w')
     flVariableDeadline = open(f'Results/randomDeadlines.csv','w')
@@ -32,7 +33,7 @@ def main():
         Gfl = f'benchmarks/dag3/random{N}_0.dot'
         print(f'Processing {Gfl}')
         p1,f1,allM1,e1,r1 = dnc.DnCLike(Gfl,D)
-        p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D)
+        p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D,optimized)
         print(f'{N},{p2/p1},{e2/e1},{r1},{r2}',file=flRunTimeAndVariableTaskGraphSize)
         print(f'{N},{p2/p1},{e2/e1},{r1},{r2}')
     print(f'Completed Vraible TG Variable Size experiments')
@@ -45,19 +46,19 @@ def main():
     #     Gfl = f'benchmarks/dag4/random{N}_{id}.dot'
     #     p1,f1,allM1,e1,r1 = dnc.DnCLike(Gfl,D)
     #     os.system(f'mv ExectionTrace.csv Results/ExectionTrace{N}_{id}_DnCLike.csv')
-    #     p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D)
+    #     p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D,optimized)
     #     os.system(f'mv ExectionTrace.csv Results/ExectionTrace{N}_{id}_PKPMin.csv')
     #     print(f'{id},{p2/p1},{e2/e1}',file=flRandomTGConstantTaskGraphSize)
     #     print(f'{id},{p2/p1:.2f},{e2/e1:.2f},{allM1},{allM2},{f1/D:.2f},{f2/D:.2f}')
     # print(f'Completed numRandom experiments')
     
-    # Variable (monotonically increasing) deadline experiments
+    # # Variable (monotonically increasing) deadline experiments
     # for fac in range(17,118): # 118
     #     N = 100
     #     D = fac*N
     #     Gfl = f'benchmarks/dag3/random{N}_0.dot'
     #     p1,f1,allM1,e1,r1 = dnc.DnCLike(Gfl,D)
-    #     p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D)
+    #     p2,f2,allM2,e2,r2 = pkp.PkMin(Gfl,D,optimized)
     #     print(f'{D},{p2/p1},{e2/e1}',file=flVariableDeadline)
     #     print(f'{D},{p2/p1:.2f},{e2/e1:.2f},{allM1},{allM2},{f1/D:.2f},{f2/D:.2f}')
     # print(f'Completed numDeadlines experiments')

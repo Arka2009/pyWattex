@@ -36,7 +36,7 @@ def cvxallocTest():
     print(xopt[:-1])
 
 
-def PkMin(fl2,D,debugPrint=False):
+def PkMin(fl2,D,optimized=False,debugPrint=False):
     pkp    = 0.0 
     atg = ut.ATG(fl2)
     tol = 1e-8
@@ -56,11 +56,21 @@ def PkMin(fl2,D,debugPrint=False):
             print(f'iter_Beg@{i}|Et:{finish2},Pkp:{pkp2},ATG:{atg}\n')
 
         # CVX Opt Step
-        pkp_cvx,finish_cvx,_ = atg.cvxalloc(D)
+        pkp_cvx,finish_cvx,_ = atg.cvxalloc(D,optimized)
         if (pkp_cvx < bestPkp) and (finish_cvx <= D) : # Save the best encountered allocation
             bestAtg  = copy.deepcopy(atg)
             bestPkp  = pkp_cvx
             bestFin  = finish_cvx
+        
+        if optimized :
+            # Deadline Missed
+            if finish_cvx > D :
+                # print(f'STOPPED : DEADLINE MISS')
+                break
+            if bestPkp < pkp_cvx :
+                # print(f'STOPPED : PREVIOUS CONFIG BETTER')
+                break
+        
         
         if debugPrint :
             pkp2,finish2,_ = atg.getTotalEtPower()
