@@ -36,7 +36,7 @@ def cvxallocTest():
     print(xopt[:-1])
 
 
-def PkMin(fl2,D,optimized=False,debugPrint=False):
+def PkMin(fl2,D,roundUp=True,optimized=False,debugPrint=False):
     pkp    = 0.0 
     atg = ut.ATG(fl2)
     tol = 1e-8
@@ -44,6 +44,9 @@ def PkMin(fl2,D,optimized=False,debugPrint=False):
     i = 0
     pkp,finish,_ = atg.initalloc(D)
     completelySerialized = False
+    numFeasibleAlloc = 0
+    numInfeasibleAlloc = 0
+    numTotalAlloc = 0
     
     while (not completelySerialized):
         if i == 0 :
@@ -56,12 +59,18 @@ def PkMin(fl2,D,optimized=False,debugPrint=False):
             print(f'iter_Beg@{i}|Et:{finish2},Pkp:{pkp2},ATG:{atg}\n')
 
         # CVX Opt Step
-        pkp_cvx,finish_cvx,_ = atg.cvxalloc(D,optimized)
+        pkp_cvx,finish_cvx,_ = atg.cvxalloc(D,roundUp,optimized)
         if (pkp_cvx < bestPkp) and (finish_cvx <= D) : # Save the best encountered allocation
             bestAtg  = copy.deepcopy(atg)
             bestPkp  = pkp_cvx
             bestFin  = finish_cvx
         
+        if finish_cvx > D :
+            numInfeasibleAlloc += 1
+        else  :
+            numFeasibleAlloc += 1
+        numTotalAlloc += 1
+
         if optimized :
             # Deadline Missed
             if finish_cvx > D :
@@ -88,4 +97,5 @@ def PkMin(fl2,D,optimized=False,debugPrint=False):
     s2  = time.time()
     bestAtg.setScheduled(True)
     verpkp,verfinish,maxM,energy = bestAtg.getTotalEtPower()
+    print(f'RoundUp:{roundUp},TotalCvxInvocation:{numTotalAlloc},TotalFeasible:{numFeasibleAlloc},TotalInfeasible:{numInfeasibleAlloc}')
     return (verpkp,verfinish,maxM,energy,(s2-s1))

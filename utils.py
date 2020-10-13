@@ -745,7 +745,7 @@ class ATG(object):
             start = finish
         return (maxpkp,finish,-1)
     
-    def cvxalloc(self,D,optimized=False):
+    def cvxalloc(self,D,roundUp=True,optimized=False):
         """
             Compute the allocations of
             nodes of atg, which is (topologically)
@@ -765,7 +765,6 @@ class ATG(object):
             ap.append(a2)
             bp.append(b2)
             llim.append(llim1)
-            # self.setParamVal(t,'rank',r)
         
         opt = tcvx.CPPCVXOptimizer()
         x   = [1 for _ in range(N)] + [0.0]
@@ -782,7 +781,10 @@ class ATG(object):
             self.setParamVal(t,'rank',r)
     
             # Allocation for myself. Allocation for my children is done within setParamVal
-            allocAllStack = math.ceil(xopt[r])
+            if roundUp :
+                allocAllStack = math.ceil(xopt[r])
+            else :
+                allocAllStack = math.floor(xopt[r])
             self.setParamVal(t,'alloc',allocAllStack)
     
             finish = start + self.getExecutionTime(t,allocAllStack)
